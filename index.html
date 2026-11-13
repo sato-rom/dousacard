@@ -61,15 +61,15 @@
 
     #controlPanel {
       position: fixed;
-      bottom: 20px;
+      bottom: 16px;
       left: 50%;
       transform: translateX(-50%);
-      width: 90%;
-      max-width: 400px;
-      background: rgba(15, 23, 42, 0.9);
+      width: 92%;
+      max-width: 420px;
+      background: rgba(15, 23, 42, 0.92);
       border: 1px solid rgba(56, 189, 248, 0.4);
       border-radius: 20px;
-      padding: 12px 16px;
+      padding: 12px 14px;
       z-index: 1000;
       display: none;
       flex-direction: column;
@@ -81,8 +81,33 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
-      font-size: 0.9rem;
+      gap: 8px;
+      font-size: 0.85rem;
+    }
+
+    /* 再生速度ボタン群 */
+    .speed-group {
+      display: flex;
+      gap: 6px;
+      flex: 1;
+    }
+
+    .speed-btn {
+      flex: 1;
+      background: #1e293b;
+      color: #cbd5e1;
+      border: 1px solid #334155;
+      padding: 7px 4px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .speed-btn.active {
+      background: #38bdf8;
+      color: #0f172a;
+      border-color: #38bdf8;
     }
 
     #muteToggleBtn {
@@ -113,31 +138,31 @@
       "./video25.mp4", "./video26.mp4", "./video27.mp4", "./video28.mp4", "./video29.mp4"
     ];
 
-    // 基準サイズ（縦長・横長どちらでも画面からはみ出しにくい基準値）
-    const MAX_VIDEO_SIZE = 1.1;
+    // 全体の表示サイズ倍率（大きくしたい場合は 1.3 などに調整）
+    const BASE_SIZE = 1.0;
     let currentAngleX = 35;
     let currentLoadedSrc = "./video0.mp4";
+    let currentPlaybackRate = 1.0;
 
-    // 動画本来の縦横比を計算して <a-video> のサイズを自動補正する関数
-    function adjustVideoAspectRatio(videoEl) {
+    // A-Frameの3D板に対して scale を使って動画本来の縦横比を確実に反映させる関数
+    function applyTrueAspectRatio(videoEl) {
       const vw = videoEl.videoWidth;
       const vh = videoEl.videoHeight;
       if (!vw || !vh) return;
 
-      let width, height;
+      let scaleX, scaleY;
       if (vw >= vh) {
         // 横長・正方形の動画
-        width = MAX_VIDEO_SIZE;
-        height = MAX_VIDEO_SIZE * (vh / vw);
+        scaleX = BASE_SIZE;
+        scaleY = BASE_SIZE * (vh / vw);
       } else {
-        // スマホ撮影などの縦長動画
-        height = MAX_VIDEO_SIZE * 1.25;
-        width = height * (vw / vh);
+        // スマホ縦長動画（縦が長くなるようそのままの比率でスケール）
+        scaleY = BASE_SIZE * 1.25;
+        scaleX = scaleY * (vw / vh);
       }
 
       document.querySelectorAll(".ar-video-plane").forEach(plane => {
-        plane.setAttribute("width", width.toFixed(3));
-        plane.setAttribute("height", height.toFixed(3));
+        plane.setAttribute("scale", `${scaleX.toFixed(4)} ${scaleY.toFixed(4)} 1`);
       });
     }
 
@@ -146,13 +171,15 @@
       const statusBadge = document.getElementById("statusBadge");
       const mainVideo = document.getElementById("mainVideo");
 
-      // 動画のメタデータ（縦横サイズ）読み込み完了時に比率を自動補正
-      mainVideo.addEventListener("loadedmetadata", () => {
-        adjustVideoAspectRatio(mainVideo);
+      // 動画の解像度情報が確定したすべてのタイミングで比率と速度を再適用
+      ["loadedmetadata", "loadeddata", "resize", "playing"].forEach(evt => {
+        mainVideo.addEventListener(evt, () => {
+          applyTrueAspectRatio(mainVideo);
+          mainVideo.playbackRate = currentPlaybackRate;
+        });
       });
 
       mainVideo.addEventListener("playing", () => {
-        adjustVideoAspectRatio(mainVideo);
         statusBadge.style.color = "#10b981";
       });
 
@@ -165,11 +192,13 @@
         const targetEntity = document.createElement("a-entity");
         targetEntity.setAttribute("mindar-image-target", `targetIndex: ${index}`);
 
+        // 基準を 1x1 の正方形にしておき、scale で実際の縦横比に変形させる
         const videoPlane = document.createElement("a-video");
         videoPlane.classList.add("ar-video-plane");
         videoPlane.setAttribute("src", "#mainVideo");
-        videoPlane.setAttribute("width", 1);
-        videoPlane.setAttribute("height", 1);
+        videoPlane.setAttribute("width", "1");
+        videoPlane.setAttribute("height", "1");
+        videoPlane.setAttribute("scale", "1 1 1");
         videoPlane.setAttribute("position", "0 0 0.25");
         videoPlane.setAttribute("rotation", `${currentAngleX} 0 0`);
 
@@ -185,9 +214,10 @@
             mainVideo.pause();
             mainVideo.src = src;
             mainVideo.load();
-          } else {
-            adjustVideoAspectRatio(mainVideo);
           }
+
+          mainVideo.playbackRate = currentPlaybackRate;
+          applyTrueAspectRatio(mainVideo);
 
           mainVideo.play().catch(() => {
             statusBadge.textContent = `⏳ 読込中: ${src}`;
@@ -216,11 +246,24 @@
   <div id="statusBadge" style="display: none;">🔍 カードを探しています...</div>
 
   <div id="controlPanel">
+    <!-- 再生速度コントロール -->
     <div class="ctrl-row">
-      <span>📐 動画の角度:</span>
-      <input type="range" id="angleSlider" min="0" max="90" value="35" />
-      <span id="angleVal" style="width: 36px; text-align: right;">35°</span>
+      <span style="white-space: nowrap;">⏩ 速度:</span>
+      <div class="speed-group">
+        <button class="speed-btn" data-speed="0.5" type="button">0.5x</button>
+        <button class="speed-btn active" data-speed="1.0" type="button">1.0x</button>
+        <button class="speed-btn" data-speed="1.5" type="button">1.5x</button>
+        <button class="speed-btn" data-speed="2.0" type="button">2.0x</button>
+      </div>
     </div>
+
+    <!-- 角度調整スライダー -->
+    <div class="ctrl-row">
+      <span style="white-space: nowrap;">📐 角度:</span>
+      <input type="range" id="angleSlider" min="0" max="90" value="35" />
+      <span id="angleVal" style="width: 34px; text-align: right;">35°</span>
+    </div>
+
     <button id="muteToggleBtn" type="button">🔇 音声をオンにする</button>
   </div>
 
@@ -259,6 +302,18 @@
     const mainVideo = document.getElementById("mainVideo");
     const sceneEl = document.getElementById("arScene");
 
+    // 速度変更ボタンの処理
+    document.querySelectorAll(".speed-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        document.querySelectorAll(".speed-btn").forEach(b => b.classList.remove("active"));
+        e.target.classList.add("active");
+
+        currentPlaybackRate = parseFloat(e.target.dataset.speed);
+        mainVideo.playbackRate = currentPlaybackRate;
+      });
+    });
+
+    // 角度調整スライダー
     angleSlider.addEventListener("input", (e) => {
       const deg = e.target.value;
       angleVal.textContent = `${deg}°`;
@@ -269,12 +324,14 @@
       });
     });
 
+    // 音声オン・オフ切り替え
     muteToggleBtn.addEventListener("click", () => {
       mainVideo.muted = !mainVideo.muted;
       muteToggleBtn.textContent = mainVideo.muted ? "🔇 音声をオンにする" : "🔊 音声ON中";
       if (!mainVideo.paused) mainVideo.play();
     });
 
+    // ARスタート
     startBtn.addEventListener("click", async () => {
       startBtn.disabled = true;
       startBtn.textContent = "カメラ起動中...";
