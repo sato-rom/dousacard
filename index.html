@@ -59,28 +59,57 @@
       white-space: nowrap;
     }
 
-    #muteToggleBtn {
+    /* 下部コントロールパネル（音声・角度調整） */
+    #controlPanel {
       position: fixed;
-      bottom: 24px;
+      bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
+      width: 90%;
+      max-width: 400px;
       background: rgba(15, 23, 42, 0.9);
-      color: #f8fafc;
-      border: 1px solid #38bdf8;
-      padding: 12px 24px;
-      border-radius: 30px;
-      font-size: 1rem;
-      font-weight: bold;
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      border-radius: 20px;
+      padding: 12px 16px;
       z-index: 1000;
-      cursor: pointer;
       display: none;
+      flex-direction: column;
+      gap: 10px;
+      color: #f8fafc;
+    }
+
+    .ctrl-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 0.9rem;
+    }
+
+    #muteToggleBtn {
+      width: 100%;
+      background: #1e293b;
+      color: #38bdf8;
+      border: 1px solid #38bdf8;
+      padding: 10px;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    input[type="range"] {
+      flex: 1;
+      accent-color: #38bdf8;
     }
   </style>
 
-  <!-- A-Frameが初期化される「前」に30枚分のターゲットを確実に生成するスクリプト -->
   <script>
+    // ==========================================
+    // 🎬 30枚分の動画ファイル設定（0番 〜 29番）
+    // ==========================================
     const VIDEO_LIST = [
-      "./動作3.mp4",  "./動作4.mp4",  "./動作5.mp4",  "./video3.mp4",  "./video4.mp4",
+      "./動画3.mp4",  "./動画4.mp4",  "./動画5.mp4",  "./video3.mp4",  "./video4.mp4",
       "./video5.mp4",  "./video6.mp4",  "./video7.mp4",  "./video8.mp4",  "./video9.mp4",
       "./video10.mp4", "./video11.mp4", "./video12.mp4", "./video13.mp4", "./video14.mp4",
       "./video15.mp4", "./video16.mp4", "./video17.mp4", "./video18.mp4", "./video19.mp4",
@@ -90,59 +119,49 @@
 
     const VIDEO_WIDTH = 1;
     const VIDEO_HEIGHT = 0.7;
+    // 初期の起き上がり角度（35度手前に傾けて机の上のカードを見やすくする）
+    let currentAngleX = 35;
 
-    // A-Frameのシーン起動前にHTML要素を構築
+    // A-Frame初期化前に30個のターゲット枠だけを生成（動画は1つだけ使い回してフリーズ防止）
     document.addEventListener("DOMContentLoaded", () => {
-      const assetsEl = document.getElementById("arAssets");
       const sceneEl = document.getElementById("arScene");
       const statusBadge = document.getElementById("statusBadge");
+      const mainVideo = document.getElementById("mainVideo");
 
       VIDEO_LIST.forEach((src, index) => {
-        // 1. 各カード専用のvideoタグを生成（preload="metadata"でメモリを節約しつつテクスチャバグを回避）
-        const videoEl = document.createElement("video");
-        videoEl.id = `vid_${index}`;
-        videoEl.src = src;
-        videoEl.setAttribute("preload", "metadata");
-        videoEl.setAttribute("loop", "");
-        videoEl.setAttribute("muted", "");
-        videoEl.setAttribute("playsinline", "");
-        videoEl.setAttribute("webkit-playsinline", "");
-        videoEl.setAttribute("crossorigin", "anonymous");
-        videoEl.muted = true;
-        assetsEl.appendChild(videoEl);
-
-        // 2. 各ターゲットエンティティを生成
         const targetEntity = document.createElement("a-entity");
         targetEntity.setAttribute("mindar-image-target", `targetIndex: ${index}`);
 
         const videoPlane = document.createElement("a-video");
-        videoPlane.setAttribute("src", `#vid_${index}`);
+        videoPlane.classList.add("ar-video-plane");
+        videoPlane.setAttribute("src", "#mainVideo");
         videoPlane.setAttribute("width", VIDEO_WIDTH);
         videoPlane.setAttribute("height", VIDEO_HEIGHT);
-        videoPlane.setAttribute("position", "0 0 0");
+        // 少し浮かせて（z: 0.25）角度をつけることでカードにめり込まず見やすくする
+        videoPlane.setAttribute("position", "0 0 0.25");
+        videoPlane.setAttribute("rotation", `${currentAngleX} 0 0`);
 
         targetEntity.appendChild(videoPlane);
         sceneEl.appendChild(targetEntity);
 
-        // 認識した時
+        // カード認識時：そのカードの動画だけをセットして再生
         targetEntity.addEventListener("targetFound", () => {
           statusBadge.textContent = `🎬 カード #${index + 1} を再生中`;
           statusBadge.style.color = "#10b981";
-          
-          // 他の動画が鳴っていたら止める
-          document.querySelectorAll("video").forEach(v => {
-            if (v.id !== `vid_${index}`) v.pause();
-          });
 
-          videoEl.play().catch(e => {
-            statusBadge.textContent = `⚠️ 動画が見つかりません: ${src}`;
-            statusBadge.style.color = "#ef4444";
+          mainVideo.pause();
+          mainVideo.src = src;
+          mainVideo.load();
+          mainVideo.play().catch(e => {
+            statusBadge.textContent = `⚠️ 読込待機中: ${src}`;
           });
         });
 
-        // カメラから外れた時
+        // カードが外れた時：動画を停止してメモリを即座に解放（フリーズ防止）
         targetEntity.addEventListener("targetLost", () => {
-          videoEl.pause();
+          mainVideo.pause();
+          mainVideo.removeAttribute("src");
+          mainVideo.load();
           statusBadge.textContent = "🔍 カードを探しています...";
           statusBadge.style.color = "#38bdf8";
         });
@@ -161,18 +180,39 @@
   </div>
 
   <div id="statusBadge" style="display: none;">🔍 カードを探しています...</div>
-  <button id="muteToggleBtn" type="button">🔇 音声をオンにする</button>
 
-  <!-- maxTrack: 2 に設定し、別のカードへの切り替え反応を高速化 -->
+  <!-- 音声と角度の調整パネル -->
+  <div id="controlPanel">
+    <div class="ctrl-row">
+      <span>📐 動画の角度:</span>
+      <input type="range" id="angleSlider" min="0" max="90" value="35" />
+      <span id="angleVal" style="width: 36px; text-align: right;">35°</span>
+    </div>
+    <button id="muteToggleBtn" type="button">🔇 音声をオンにする</button>
+  </div>
+
+  <!-- maxTrack: 1 にすることで処理負荷を下げてカメラのフリーズを防止 -->
   <a-scene
     id="arScene"
-    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; maxTrack: 2; uiLoading: no; uiScanning: no;"
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; maxTrack: 1; uiLoading: no; uiScanning: no;"
     color-space="sRGB"
-    renderer="colorManagement: true, physicallyCorrectLights"
+    renderer="colorManagement: true, physicallyCorrectLights: false, antialias: false"
     vr-mode-ui="enabled: false"
     device-orientation-permission-ui="enabled: false"
   >
-    <a-assets id="arAssets"></a-assets>
+    <a-assets>
+      <!-- 共通で使い回す1つのvideo要素 -->
+      <video
+        id="mainVideo"
+        preload="none"
+        loop
+        muted
+        playsinline
+        webkit-playsinline
+        crossorigin="anonymous"
+      ></video>
+    </a-assets>
+
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
   </a-scene>
 
@@ -180,36 +220,43 @@
     const startOverlay = document.getElementById("startOverlay");
     const startBtn = document.getElementById("startBtn");
     const statusBadge = document.getElementById("statusBadge");
+    const controlPanel = document.getElementById("controlPanel");
     const muteToggleBtn = document.getElementById("muteToggleBtn");
+    const angleSlider = document.getElementById("angleSlider");
+    const angleVal = document.getElementById("angleVal");
+    const mainVideo = document.getElementById("mainVideo");
     const sceneEl = document.getElementById("arScene");
 
-    let isMuted = true;
+    // 角度スライダーのリアルタイム反映
+    angleSlider.addEventListener("input", (e) => {
+      const deg = e.target.value;
+      angleVal.textContent = `${deg}°`;
+      // 浮き上がり高さ(z)も角度に合わせて自動調整しカードにめり込まないようにする
+      const zOffset = (deg / 90) * 0.45;
+      document.querySelectorAll(".ar-video-plane").forEach(plane => {
+        plane.setAttribute("rotation", `${deg} 0 0`);
+        plane.setAttribute("position", `0 0 ${zOffset.toFixed(2)}`);
+      });
+    });
 
     // 音声オン・オフ切り替え
     muteToggleBtn.addEventListener("click", () => {
-      isMuted = !isMuted;
-      document.querySelectorAll("video").forEach(v => {
-        v.muted = isMuted;
-      });
-      muteToggleBtn.textContent = isMuted ? "🔇 音声をオンにする" : "🔊 音声ON中";
+      mainVideo.muted = !mainVideo.muted;
+      muteToggleBtn.textContent = mainVideo.muted ? "🔇 音声をオンにする" : "🔊 音声ON中";
+      if (!mainVideo.paused) mainVideo.play();
     });
 
-    // ARスタートボタン
+    // ARスタート
     startBtn.addEventListener("click", async () => {
       startBtn.disabled = true;
       startBtn.textContent = "カメラ起動中...";
-
-      // すべてのvideo要素のブラウザ再生ロックを解除
-      document.querySelectorAll("video").forEach(v => {
-        v.play().then(() => v.pause()).catch(() => {});
-      });
 
       const arSystem = sceneEl.systems["mindar-image-system"];
       await arSystem.start();
 
       startOverlay.style.display = "none";
       statusBadge.style.display = "block";
-      muteToggleBtn.style.display = "block";
+      controlPanel.style.display = "flex";
     });
   </script>
 </body>
