@@ -59,6 +59,26 @@
       white-space: nowrap;
     }
 
+    /* 画面中央にピタッと固定表示する用のコンテナ */
+    #fixedVideoContainer {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 900;
+      padding: 20px;
+    }
+
+    #fixedVideoDisplay {
+      max-width: 100%;
+      max-height: 70vh;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+      border: 2px solid #38bdf8;
+    }
+
     #controlPanel {
       position: fixed;
       bottom: 16px;
@@ -85,7 +105,6 @@
       font-size: 0.85rem;
     }
 
-    /* 再生速度ボタン群 */
     .speed-group {
       display: flex;
       gap: 6px;
@@ -110,16 +129,27 @@
       border-color: #38bdf8;
     }
 
-    #muteToggleBtn {
-      width: 100%;
+    .action-btn-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .action-btn {
+      flex: 1;
       background: #1e293b;
       color: #38bdf8;
       border: 1px solid #38bdf8;
-      padding: 10px;
+      padding: 10px 8px;
       border-radius: 12px;
-      font-size: 0.95rem;
+      font-size: 0.9rem;
       font-weight: bold;
       cursor: pointer;
+    }
+
+    .action-btn.pinned {
+      background: #10b981;
+      color: #0f172a;
+      border-color: #10b981;
     }
 
     input[type="range"] {
@@ -138,13 +168,12 @@
       "./video25.mp4", "./video26.mp4", "./video27.mp4", "./video28.mp4", "./video29.mp4"
     ];
 
-    // 全体の表示サイズ倍率（大きくしたい場合は 1.3 などに調整）
     const BASE_SIZE = 1.0;
     let currentAngleX = 35;
     let currentLoadedSrc = "./video0.mp4";
     let currentPlaybackRate = 1.0;
+    let isPinned = false;
 
-    // A-Frameの3D板に対して scale を使って動画本来の縦横比を確実に反映させる関数
     function applyTrueAspectRatio(videoEl) {
       const vw = videoEl.videoWidth;
       const vh = videoEl.videoHeight;
@@ -152,11 +181,9 @@
 
       let scaleX, scaleY;
       if (vw >= vh) {
-        // 横長・正方形の動画
         scaleX = BASE_SIZE;
         scaleY = BASE_SIZE * (vh / vw);
       } else {
-        // スマホ縦長動画（縦が長くなるようそのままの比率でスケール）
         scaleY = BASE_SIZE * 1.25;
         scaleX = scaleY * (vw / vh);
       }
@@ -171,7 +198,6 @@
       const statusBadge = document.getElementById("statusBadge");
       const mainVideo = document.getElementById("mainVideo");
 
-      // 動画の解像度情報が確定したすべてのタイミングで比率と速度を再適用
       ["loadedmetadata", "loadeddata", "resize", "playing"].forEach(evt => {
         mainVideo.addEventListener(evt, () => {
           applyTrueAspectRatio(mainVideo);
@@ -192,7 +218,6 @@
         const targetEntity = document.createElement("a-entity");
         targetEntity.setAttribute("mindar-image-target", `targetIndex: ${index}`);
 
-        // 基準を 1x1 の正方形にしておき、scale で実際の縦横比に変形させる
         const videoPlane = document.createElement("a-video");
         videoPlane.classList.add("ar-video-plane");
         videoPlane.setAttribute("src", "#mainVideo");
@@ -206,6 +231,8 @@
         sceneEl.appendChild(targetEntity);
 
         targetEntity.addEventListener("targetFound", () => {
+          if (isPinned) return; // 画面固定中は別のカードに勝手に切り替わらないようにする
+
           statusBadge.textContent = `🎬 カード #${index + 1} を再生中`;
           statusBadge.style.color = "#10b981";
 
@@ -225,6 +252,8 @@
         });
 
         targetEntity.addEventListener("targetLost", () => {
+          if (isPinned) return; // 画面固定中はカードからカメラを外しても再生を続ける
+
           mainVideo.pause();
           statusBadge.textContent = "🔍 カードを探しています...";
           statusBadge.style.color = "#38bdf8";
@@ -245,6 +274,11 @@
 
   <div id="statusBadge" style="display: none;">🔍 カードを探しています...</div>
 
+  <!-- 画面中央固定モード用の枠 -->
+  <div id="fixedVideoContainer">
+    <canvas id="fixedCanvas" style="max-width: 100%; max-height: 68vh; border-radius: 16px; border: 2px solid #10b981;"></canvas>
+  </div>
+
   <div id="controlPanel">
     <!-- 再生速度コントロール -->
     <div class="ctrl-row">
@@ -258,18 +292,27 @@
     </div>
 
     <!-- 角度調整スライダー -->
-    <div class="ctrl-row">
+    <div class="ctrl-row" id="angleCtrlRow">
       <span style="white-space: nowrap;">📐 角度:</span>
       <input type="range" id="angleSlider" min="0" max="90" value="35" />
       <span id="angleVal" style="width: 34px; text-align: right;">35°</span>
     </div>
 
-    <button id="muteToggleBtn" type="button">🔇 音声をオンにする</button>
+    <!-- 音声 & 画面固定ボタン -->
+    <div class="action-btn-row">
+      <button id="muteToggleBtn" class="action-btn" type="button">🔇 音声ON</button>
+      <button id="pinToggleBtn" class="action-btn" type="button">📌 画面に固定</button>
+    </div>
   </div>
 
+  <!--
+    filterMinCF: 0.0001（小さいほど細かい手ブレ・ブルブルを強力にカット）
+    filterBeta: 0.001（小さいほど動きが滑らかになり振動を抑える）
+    missTolerance: 10（一瞬認識が外れてもチカチカ消えないようにする）
+  -->
   <a-scene
     id="arScene"
-    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; maxTrack: 1; uiLoading: no; uiScanning: no;"
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; maxTrack: 1; filterMinCF: 0.0001; filterBeta: 0.001; missTolerance: 10; uiLoading: no; uiScanning: no;"
     color-space="sRGB"
     renderer="colorManagement: true, physicallyCorrectLights: false, antialias: false"
     vr-mode-ui="enabled: false"
@@ -297,12 +340,51 @@
     const statusBadge = document.getElementById("statusBadge");
     const controlPanel = document.getElementById("controlPanel");
     const muteToggleBtn = document.getElementById("muteToggleBtn");
+    const pinToggleBtn = document.getElementById("pinToggleBtn");
     const angleSlider = document.getElementById("angleSlider");
     const angleVal = document.getElementById("angleVal");
+    const angleCtrlRow = document.getElementById("angleCtrlRow");
+    const fixedVideoContainer = document.getElementById("fixedVideoContainer");
+    const fixedCanvas = document.getElementById("fixedCanvas");
     const mainVideo = document.getElementById("mainVideo");
     const sceneEl = document.getElementById("arScene");
 
-    // 速度変更ボタンの処理
+    let animFrameId = null;
+
+    // 固定表示用の高画質キャンバス描画ループ
+    function renderFixedCanvas() {
+      if (!isPinned) return;
+      if (mainVideo.readyState >= 2) {
+        if (fixedCanvas.width !== mainVideo.videoWidth || fixedCanvas.height !== mainVideo.videoHeight) {
+          fixedCanvas.width = mainVideo.videoWidth;
+          fixedCanvas.height = mainVideo.videoHeight;
+        }
+        const ctx = fixedCanvas.getContext("2d");
+        ctx.drawImage(mainVideo, 0, 0, fixedCanvas.width, fixedCanvas.height);
+      }
+      animFrameId = requestAnimationFrame(renderFixedCanvas);
+    }
+
+    // 画面に固定モードの切り替え
+    pinToggleBtn.addEventListener("click", () => {
+      isPinned = !isPinned;
+      if (isPinned) {
+        pinToggleBtn.classList.add("pinned");
+        pinToggleBtn.textContent = "🔓 固定を解除";
+        fixedVideoContainer.style.display = "flex";
+        angleCtrlRow.style.display = "none";
+        mainVideo.play().catch(() => {});
+        renderFixedCanvas();
+      } else {
+        pinToggleBtn.classList.remove("pinned");
+        pinToggleBtn.textContent = "📌 画面に固定";
+        fixedVideoContainer.style.display = "none";
+        angleCtrlRow.style.display = "flex";
+        if (animFrameId) cancelAnimationFrame(animFrameId);
+      }
+    });
+
+    // 速度変更ボタン
     document.querySelectorAll(".speed-btn").forEach(btn => {
       btn.addEventListener("click", (e) => {
         document.querySelectorAll(".speed-btn").forEach(b => b.classList.remove("active"));
@@ -327,7 +409,7 @@
     // 音声オン・オフ切り替え
     muteToggleBtn.addEventListener("click", () => {
       mainVideo.muted = !mainVideo.muted;
-      muteToggleBtn.textContent = mainVideo.muted ? "🔇 音声をオンにする" : "🔊 音声ON中";
+      muteToggleBtn.textContent = mainVideo.muted ? "🔇 音声ON" : "🔊 音声ON中";
       if (!mainVideo.paused) mainVideo.play();
     });
 
