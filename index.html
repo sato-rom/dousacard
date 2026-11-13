@@ -104,9 +104,6 @@
   </style>
 
   <script>
-    // ==========================================
-    // 🎬 30枚分の動画ファイル設定（0番 〜 29番）
-    // ==========================================
     const VIDEO_LIST = [
       "./動作3.mp4",  "./動作4.mp4",  "./動作5.mp4",  "./video3.mp4",  "./video4.mp4",
       "./video5.mp4",  "./video6.mp4",  "./video7.mp4",  "./video8.mp4",  "./video9.mp4",
@@ -116,22 +113,49 @@
       "./video25.mp4", "./video26.mp4", "./video27.mp4", "./video28.mp4", "./video29.mp4"
     ];
 
-    const VIDEO_WIDTH = 1;
-    const VIDEO_HEIGHT = 0.7;
+    // 基準サイズ（縦長・横長どちらでも画面からはみ出しにくい基準値）
+    const MAX_VIDEO_SIZE = 1.1;
     let currentAngleX = 35;
     let currentLoadedSrc = "./video0.mp4";
+
+    // 動画本来の縦横比を計算して <a-video> のサイズを自動補正する関数
+    function adjustVideoAspectRatio(videoEl) {
+      const vw = videoEl.videoWidth;
+      const vh = videoEl.videoHeight;
+      if (!vw || !vh) return;
+
+      let width, height;
+      if (vw >= vh) {
+        // 横長・正方形の動画
+        width = MAX_VIDEO_SIZE;
+        height = MAX_VIDEO_SIZE * (vh / vw);
+      } else {
+        // スマホ撮影などの縦長動画
+        height = MAX_VIDEO_SIZE * 1.25;
+        width = height * (vw / vh);
+      }
+
+      document.querySelectorAll(".ar-video-plane").forEach(plane => {
+        plane.setAttribute("width", width.toFixed(3));
+        plane.setAttribute("height", height.toFixed(3));
+      });
+    }
 
     document.addEventListener("DOMContentLoaded", () => {
       const sceneEl = document.getElementById("arScene");
       const statusBadge = document.getElementById("statusBadge");
       const mainVideo = document.getElementById("mainVideo");
 
-      // 動画の再生が実際に始まったらステータスを更新
+      // 動画のメタデータ（縦横サイズ）読み込み完了時に比率を自動補正
+      mainVideo.addEventListener("loadedmetadata", () => {
+        adjustVideoAspectRatio(mainVideo);
+      });
+
       mainVideo.addEventListener("playing", () => {
+        adjustVideoAspectRatio(mainVideo);
         statusBadge.style.color = "#10b981";
       });
 
-      // ファイルが見つからない・形式エラー時の詳細表示
       mainVideo.addEventListener("error", () => {
         statusBadge.textContent = `❌ 動画エラー(${currentLoadedSrc}が見つかりません)`;
         statusBadge.style.color = "#ef4444";
@@ -144,25 +168,25 @@
         const videoPlane = document.createElement("a-video");
         videoPlane.classList.add("ar-video-plane");
         videoPlane.setAttribute("src", "#mainVideo");
-        videoPlane.setAttribute("width", VIDEO_WIDTH);
-        videoPlane.setAttribute("height", VIDEO_HEIGHT);
+        videoPlane.setAttribute("width", 1);
+        videoPlane.setAttribute("height", 1);
         videoPlane.setAttribute("position", "0 0 0.25");
         videoPlane.setAttribute("rotation", `${currentAngleX} 0 0`);
 
         targetEntity.appendChild(videoPlane);
         sceneEl.appendChild(targetEntity);
 
-        // カードを認識した瞬間
         targetEntity.addEventListener("targetFound", () => {
           statusBadge.textContent = `🎬 カード #${index + 1} を再生中`;
           statusBadge.style.color = "#10b981";
 
-          // 別のカードに切り替わった時だけURLを差し替え
           if (currentLoadedSrc !== src) {
             currentLoadedSrc = src;
             mainVideo.pause();
             mainVideo.src = src;
             mainVideo.load();
+          } else {
+            adjustVideoAspectRatio(mainVideo);
           }
 
           mainVideo.play().catch(() => {
@@ -170,7 +194,6 @@
           });
         });
 
-        // カードが外れた瞬間（srcは消さずにpauseだけ行うことで真っ黒化を防止）
         targetEntity.addEventListener("targetLost", () => {
           mainVideo.pause();
           statusBadge.textContent = "🔍 カードを探しています...";
@@ -210,7 +233,6 @@
     device-orientation-permission-ui="enabled: false"
   >
     <a-assets>
-      <!-- 最初から video0.mp4 をセットして3Dテクスチャの映像パイプラインを開通させておく -->
       <video
         id="mainVideo"
         src="./video0.mp4"
@@ -257,7 +279,6 @@
       startBtn.disabled = true;
       startBtn.textContent = "カメラ起動中...";
 
-      // ボタン押下と同時に一度再生・即停止して映像デコーダを起動する
       mainVideo.play().then(() => {
         mainVideo.pause();
         mainVideo.currentTime = 0;
