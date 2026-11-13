@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>30枚カード対応 WebAR</title>
 
-  <!-- A-Frame と MindAR.js の読み込み -->
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
@@ -16,11 +15,10 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
-    /* スタート画面のオーバーレイ（スマホの音声・カメラ許可取得用） */
     #startOverlay {
       position: fixed;
       inset: 0;
-      background: rgba(11, 15, 25, 0.92);
+      background: rgba(11, 15, 25, 0.94);
       color: #f8fafc;
       display: flex;
       flex-direction: column;
@@ -44,17 +42,12 @@
       cursor: pointer;
     }
 
-    #startBtn:active {
-      transform: scale(0.95);
-    }
-
-    /* 画面上部のステータス表示 */
     #statusBadge {
       position: fixed;
       top: 16px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(15, 23, 42, 0.8);
+      background: rgba(15, 23, 42, 0.85);
       color: #38bdf8;
       padding: 8px 18px;
       border-radius: 20px;
@@ -65,11 +58,100 @@
       border: 1px solid rgba(56, 189, 248, 0.3);
       white-space: nowrap;
     }
+
+    #muteToggleBtn {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.9);
+      color: #f8fafc;
+      border: 1px solid #38bdf8;
+      padding: 12px 24px;
+      border-radius: 30px;
+      font-size: 1rem;
+      font-weight: bold;
+      z-index: 1000;
+      cursor: pointer;
+      display: none;
+    }
   </style>
+
+  <!-- A-Frameが初期化される「前」に30枚分のターゲットを確実に生成するスクリプト -->
+  <script>
+    const VIDEO_LIST = [
+      "./動作3.mp4",  "./動作4.mp4",  "./動作5.mp4",  "./video3.mp4",  "./video4.mp4",
+      "./video5.mp4",  "./video6.mp4",  "./video7.mp4",  "./video8.mp4",  "./video9.mp4",
+      "./video10.mp4", "./video11.mp4", "./video12.mp4", "./video13.mp4", "./video14.mp4",
+      "./video15.mp4", "./video16.mp4", "./video17.mp4", "./video18.mp4", "./video19.mp4",
+      "./video20.mp4", "./video21.mp4", "./video22.mp4", "./video23.mp4", "./video24.mp4",
+      "./video25.mp4", "./video26.mp4", "./video27.mp4", "./video28.mp4", "./video29.mp4"
+    ];
+
+    const VIDEO_WIDTH = 1;
+    const VIDEO_HEIGHT = 0.7;
+
+    // A-Frameのシーン起動前にHTML要素を構築
+    document.addEventListener("DOMContentLoaded", () => {
+      const assetsEl = document.getElementById("arAssets");
+      const sceneEl = document.getElementById("arScene");
+      const statusBadge = document.getElementById("statusBadge");
+
+      VIDEO_LIST.forEach((src, index) => {
+        // 1. 各カード専用のvideoタグを生成（preload="metadata"でメモリを節約しつつテクスチャバグを回避）
+        const videoEl = document.createElement("video");
+        videoEl.id = `vid_${index}`;
+        videoEl.src = src;
+        videoEl.setAttribute("preload", "metadata");
+        videoEl.setAttribute("loop", "");
+        videoEl.setAttribute("muted", "");
+        videoEl.setAttribute("playsinline", "");
+        videoEl.setAttribute("webkit-playsinline", "");
+        videoEl.setAttribute("crossorigin", "anonymous");
+        videoEl.muted = true;
+        assetsEl.appendChild(videoEl);
+
+        // 2. 各ターゲットエンティティを生成
+        const targetEntity = document.createElement("a-entity");
+        targetEntity.setAttribute("mindar-image-target", `targetIndex: ${index}`);
+
+        const videoPlane = document.createElement("a-video");
+        videoPlane.setAttribute("src", `#vid_${index}`);
+        videoPlane.setAttribute("width", VIDEO_WIDTH);
+        videoPlane.setAttribute("height", VIDEO_HEIGHT);
+        videoPlane.setAttribute("position", "0 0 0");
+
+        targetEntity.appendChild(videoPlane);
+        sceneEl.appendChild(targetEntity);
+
+        // 認識した時
+        targetEntity.addEventListener("targetFound", () => {
+          statusBadge.textContent = `🎬 カード #${index + 1} を再生中`;
+          statusBadge.style.color = "#10b981";
+          
+          // 他の動画が鳴っていたら止める
+          document.querySelectorAll("video").forEach(v => {
+            if (v.id !== `vid_${index}`) v.pause();
+          });
+
+          videoEl.play().catch(e => {
+            statusBadge.textContent = `⚠️ 動画が見つかりません: ${src}`;
+            statusBadge.style.color = "#ef4444";
+          });
+        });
+
+        // カメラから外れた時
+        targetEntity.addEventListener("targetLost", () => {
+          videoEl.pause();
+          statusBadge.textContent = "🔍 カードを探しています...";
+          statusBadge.style.color = "#38bdf8";
+        });
+      });
+    });
+  </script>
 </head>
 <body>
 
-  <!-- スタート画面 -->
   <div id="startOverlay">
     <h1 style="font-size: 1.6rem; margin-bottom: 8px;">📸 カードARカメラ</h1>
     <p style="color: #94a3b8; font-size: 0.95rem; line-height: 1.5;">
@@ -78,138 +160,56 @@
     <button id="startBtn" type="button">▶ ARをスタート</button>
   </div>
 
-  <!-- 現在の認識状態 -->
   <div id="statusBadge" style="display: none;">🔍 カードを探しています...</div>
+  <button id="muteToggleBtn" type="button">🔇 音声をオンにする</button>
 
-  <!-- ARシーン（autoStart: false にしてボタン押下で安全に起動） -->
+  <!-- maxTrack: 2 に設定し、別のカードへの切り替え反応を高速化 -->
   <a-scene
     id="arScene"
-    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; maxTrack: 1; uiLoading: no; uiScanning: no;"
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; maxTrack: 2; uiLoading: no; uiScanning: no;"
     color-space="sRGB"
     renderer="colorManagement: true, physicallyCorrectLights"
     vr-mode-ui="enabled: false"
     device-orientation-permission-ui="enabled: false"
   >
-    <!-- 動画を読み込むための共通プレイヤー（メモリ節約のため1つを使い回す） -->
-    <a-assets>
-      <video
-        id="sharedVideo"
-        src=""
-        preload="none"
-        loop
-        playsinline
-        webkit-playsinline
-        crossorigin="anonymous"
-      ></video>
-    </a-assets>
-
+    <a-assets id="arAssets"></a-assets>
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-
-    <!-- ここに0番〜29番のターゲットが自動生成されます -->
   </a-scene>
 
   <script>
-    // ==========================================
-    // 🎬 30枚分の動画ファイル設定（0番 〜 29番）
-    // GitHubにアップロードする動画ファイル名と合わせてください
-    // ==========================================
-    const VIDEO_LIST = [
-      "./動作3.mp4",  // 0番のカード
-      "./動作4.mp4",  // 1番のカード
-      "./動作5.mp4",  // 2番のカード
-      "./video3.mp4",  // 3番のカード
-      "./video4.mp4",  // 4番のカード
-      "./video5.mp4",  // 5番のカード
-      "./video6.mp4",  // 6番のカード
-      "./video7.mp4",  // 7番のカード
-      "./video8.mp4",  // 8番のカード
-      "./video9.mp4",  // 9番のカード
-      "./video10.mp4", // 10番のカード
-      "./video11.mp4", // 11番のカード
-      "./video12.mp4", // 12番のカード
-      "./video13.mp4", // 13番のカード
-      "./video14.mp4", // 14番のカード
-      "./video15.mp4", // 15番のカード
-      "./video16.mp4", // 16番のカード
-      "./video17.mp4", // 17番のカード
-      "./video18.mp4", // 18番のカード
-      "./video19.mp4", // 19番のカード
-      "./video20.mp4", // 20番のカード
-      "./video21.mp4", // 21番のカード
-      "./video22.mp4", // 22番のカード
-      "./video23.mp4", // 23番のカード
-      "./video24.mp4", // 24番のカード
-      "./video25.mp4", // 25番のカード
-      "./video26.mp4", // 26番のカード
-      "./video27.mp4", // 27番のカード
-      "./video28.mp4", // 28番のカード
-      "./video29.mp4"  // 29番のカード
-    ];
-
-    // 動画の表示サイズ（カードの縦横比に合わせて調整可能）
-    // 幅1を基準にした高さの比率（例: 16:9の横長なら 0.5625、正方形なら 1.0、縦長なら 1.4）
-    const VIDEO_WIDTH = 1;
-    const VIDEO_HEIGHT = 0.7;
-
-    const sceneEl = document.getElementById("arScene");
-    const sharedVideo = document.getElementById("sharedVideo");
-    const statusBadge = document.getElementById("statusBadge");
     const startOverlay = document.getElementById("startOverlay");
     const startBtn = document.getElementById("startBtn");
+    const statusBadge = document.getElementById("statusBadge");
+    const muteToggleBtn = document.getElementById("muteToggleBtn");
+    const sceneEl = document.getElementById("arScene");
 
-    let currentTargetIndex = -1;
+    let isMuted = true;
 
-    // 0番〜29番のARターゲットとイベントを自動構築
-    VIDEO_LIST.forEach((videoSrc, index) => {
-      const targetEntity = document.createElement("a-entity");
-      targetEntity.setAttribute("mindar-image-target", `targetIndex: ${index}`);
-
-      const videoPlane = document.createElement("a-video");
-      videoPlane.setAttribute("src", "#sharedVideo");
-      videoPlane.setAttribute("width", VIDEO_WIDTH);
-      videoPlane.setAttribute("height", VIDEO_HEIGHT);
-      videoPlane.setAttribute("position", "0 0 0");
-
-      targetEntity.appendChild(videoPlane);
-      sceneEl.appendChild(targetEntity);
-
-      // カードを認識した瞬間
-      targetEntity.addEventListener("targetFound", () => {
-        currentTargetIndex = index;
-        statusBadge.textContent = `🎬 カード #${index + 1} を再生中`;
-        statusBadge.style.color = "#10b981";
-
-        // 別のカードに切り替わった場合のみ動画ソースを差し替え
-        if (sharedVideo.getAttribute("src") !== videoSrc) {
-          sharedVideo.setAttribute("src", videoSrc);
-          sharedVideo.load();
-        }
-        sharedVideo.play().catch((e) => console.log("再生待機:", e));
+    // 音声オン・オフ切り替え
+    muteToggleBtn.addEventListener("click", () => {
+      isMuted = !isMuted;
+      document.querySelectorAll("video").forEach(v => {
+        v.muted = isMuted;
       });
-
-      // カードがカメラから外れた瞬間
-      targetEntity.addEventListener("targetLost", () => {
-        if (currentTargetIndex === index) {
-          sharedVideo.pause();
-          statusBadge.textContent = "🔍 カードを探しています...";
-          statusBadge.style.color = "#38bdf8";
-        }
-      });
+      muteToggleBtn.textContent = isMuted ? "🔇 音声をオンにする" : "🔊 音声ON中";
     });
 
-    // スタートボタン押下でカメラと音声制限を同時解除
+    // ARスタートボタン
     startBtn.addEventListener("click", async () => {
       startBtn.disabled = true;
       startBtn.textContent = "カメラ起動中...";
 
-      // スマホの自動再生ブロック解除用のダミー再生
-      sharedVideo.play().then(() => sharedVideo.pause()).catch(() => {});
+      // すべてのvideo要素のブラウザ再生ロックを解除
+      document.querySelectorAll("video").forEach(v => {
+        v.play().then(() => v.pause()).catch(() => {});
+      });
 
       const arSystem = sceneEl.systems["mindar-image-system"];
       await arSystem.start();
 
       startOverlay.style.display = "none";
       statusBadge.style.display = "block";
+      muteToggleBtn.style.display = "block";
     });
   </script>
 </body>
