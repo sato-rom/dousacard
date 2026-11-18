@@ -13,6 +13,7 @@
       margin: 0;
       overflow: hidden;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: transparent;
     }
 
     #startOverlay {
@@ -59,7 +60,6 @@
       white-space: nowrap;
     }
 
-    /* 画面中央にピタッと固定表示する用のコンテナ */
     #fixedVideoContainer {
       position: fixed;
       inset: 0;
@@ -69,14 +69,6 @@
       justify-content: center;
       z-index: 900;
       padding: 20px;
-    }
-
-    #fixedVideoDisplay {
-      max-width: 100%;
-      max-height: 70vh;
-      border-radius: 16px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
-      border: 2px solid #38bdf8;
     }
 
     #controlPanel {
@@ -160,17 +152,17 @@
 
   <script>
     const VIDEO_LIST = [
-      "./1_Aカメラ.mp4",  "./2_Api-su.mp4",  "./3_Aフレーム.mp4",  "./4_A握手.mp4",  "./5_A横に動く.mp4",
-      "./6_A丸.mp4",  "./7_A指す.mp4",  "./8_A自分を指す.mp4",  "./9_Atewotunagu.mp4",  "./10_A手を開く.mp4",
+      "./1_Aカメラ.mp4",  "./2_Aピース.mp4",  "./3_Aフレーム.mp4",  "./4_A握手.mp4",  "./5_A横に動く.mp4",
+      "./6_A丸.mp4",  "./7_A指す.mp4",  "./8_A自分を指す.mp4",  "./9_A手をつなぐ.mp4",  "./10_A手を開く.mp4",
       "./11_A手を叩く.mp4", "./12_A十字.mp4", "./13_A約束.mp4", "./14_A腕を横.mp4", "./15_A腕を上下左右.mp4",
-      "./16_BS→Z.mp4", "./17_Bsuraido.mp4", "./18_B肩を前後.mp4", "./19_B手を回す.mp4", "./20_B前に進む.mp4",
+      "./16_BS→Z.mp4", "./17_Bスライド.mp4", "./18_B肩を前後.mp4", "./19_B手を回す.mp4", "./20_B前に進む.mp4",
       "./21_B足と肘を合わせる.mp4", "./22_B打つ.mp4", "./23_B体を動かす.mp4", "./24_B波.mp4", "./25_B片腕を回す.mp4",
       "./26_Cお尻を横に出す.mp4", "./27_C円を描いて移動.mp4", "./28_C花.mp4", "./29_C時計.mp4", "./30_C足の開閉.mp4"
     ];
 
     const BASE_SIZE = 1.0;
     let currentAngleX = 35;
-    let currentLoadedSrc = "./video0.mp4";
+    let currentLoadedSrc = "";
     let currentPlaybackRate = 1.0;
     let isPinned = false;
 
@@ -210,6 +202,7 @@
       });
 
       mainVideo.addEventListener("error", () => {
+        if (!currentLoadedSrc) return;
         statusBadge.textContent = `❌ 動画エラー(${currentLoadedSrc}が見つかりません)`;
         statusBadge.style.color = "#ef4444";
       });
@@ -231,7 +224,7 @@
         sceneEl.appendChild(targetEntity);
 
         targetEntity.addEventListener("targetFound", () => {
-          if (isPinned) return; // 画面固定中は別のカードに勝手に切り替わらないようにする
+          if (isPinned) return;
 
           statusBadge.textContent = `🎬 カード #${index + 1} を再生中`;
           statusBadge.style.color = "#10b981";
@@ -239,7 +232,7 @@
           if (currentLoadedSrc !== src) {
             currentLoadedSrc = src;
             mainVideo.pause();
-            mainVideo.src = src;
+            mainVideo.src = encodeURI(src);
             mainVideo.load();
           }
 
@@ -252,7 +245,7 @@
         });
 
         targetEntity.addEventListener("targetLost", () => {
-          if (isPinned) return; // 画面固定中はカードからカメラを外しても再生を続ける
+          if (isPinned) return;
 
           mainVideo.pause();
           statusBadge.textContent = "🔍 カードを探しています...";
@@ -274,13 +267,11 @@
 
   <div id="statusBadge" style="display: none;">🔍 カードを探しています...</div>
 
-  <!-- 画面中央固定モード用の枠 -->
   <div id="fixedVideoContainer">
     <canvas id="fixedCanvas" style="max-width: 100%; max-height: 68vh; border-radius: 16px; border: 2px solid #10b981;"></canvas>
   </div>
 
   <div id="controlPanel">
-    <!-- 再生速度コントロール -->
     <div class="ctrl-row">
       <span style="white-space: nowrap;">⏩ 速度:</span>
       <div class="speed-group">
@@ -291,25 +282,18 @@
       </div>
     </div>
 
-    <!-- 角度調整スライダー -->
     <div class="ctrl-row" id="angleCtrlRow">
       <span style="white-space: nowrap;">📐 角度:</span>
       <input type="range" id="angleSlider" min="0" max="90" value="35" />
       <span id="angleVal" style="width: 34px; text-align: right;">35°</span>
     </div>
 
-    <!-- 音声 & 画面固定ボタン -->
     <div class="action-btn-row">
       <button id="muteToggleBtn" class="action-btn" type="button">🔇 音声ON</button>
       <button id="pinToggleBtn" class="action-btn" type="button">📌 画面に固定</button>
     </div>
   </div>
 
-  <!--
-    filterMinCF: 0.0001（小さいほど細かい手ブレ・ブルブルを強力にカット）
-    filterBeta: 0.001（小さいほど動きが滑らかになり振動を抑える）
-    missTolerance: 10（一瞬認識が外れてもチカチカ消えないようにする）
-  -->
   <a-scene
     id="arScene"
     mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; maxTrack: 1; filterMinCF: 0.0001; filterBeta: 0.001; missTolerance: 10; uiLoading: no; uiScanning: no;"
@@ -321,8 +305,7 @@
     <a-assets>
       <video
         id="mainVideo"
-        src="./video0.mp4"
-        preload="auto"
+        preload="none"
         loop
         muted
         playsinline
@@ -351,7 +334,6 @@
 
     let animFrameId = null;
 
-    // 固定表示用の高画質キャンバス描画ループ
     function renderFixedCanvas() {
       if (!isPinned) return;
       if (mainVideo.readyState >= 2) {
@@ -365,7 +347,6 @@
       animFrameId = requestAnimationFrame(renderFixedCanvas);
     }
 
-    // 画面に固定モードの切り替え
     pinToggleBtn.addEventListener("click", () => {
       isPinned = !isPinned;
       if (isPinned) {
@@ -384,7 +365,6 @@
       }
     });
 
-    // 速度変更ボタン
     document.querySelectorAll(".speed-btn").forEach(btn => {
       btn.addEventListener("click", (e) => {
         document.querySelectorAll(".speed-btn").forEach(b => b.classList.remove("active"));
@@ -395,7 +375,6 @@
       });
     });
 
-    // 角度調整スライダー
     angleSlider.addEventListener("input", (e) => {
       const deg = e.target.value;
       angleVal.textContent = `${deg}°`;
@@ -406,29 +385,31 @@
       });
     });
 
-    // 音声オン・オフ切り替え
     muteToggleBtn.addEventListener("click", () => {
       mainVideo.muted = !mainVideo.muted;
       muteToggleBtn.textContent = mainVideo.muted ? "🔇 音声ON" : "🔊 音声ON中";
       if (!mainVideo.paused) mainVideo.play();
     });
 
-    // ARスタート
     startBtn.addEventListener("click", async () => {
       startBtn.disabled = true;
       startBtn.textContent = "カメラ起動中...";
 
-      mainVideo.play().then(() => {
-        mainVideo.pause();
-        mainVideo.currentTime = 0;
-      }).catch(() => {});
+      try {
+        const arSystem = sceneEl.systems["mindar-image-system"];
+        if (!arSystem) {
+          throw new Error("MindARの初期化が完了していません");
+        }
+        await arSystem.start();
 
-      const arSystem = sceneEl.systems["mindar-image-system"];
-      await arSystem.start();
-
-      startOverlay.style.display = "none";
-      statusBadge.style.display = "block";
-      controlPanel.style.display = "flex";
+        startOverlay.style.display = "none";
+        statusBadge.style.display = "block";
+        controlPanel.style.display = "flex";
+      } catch (err) {
+        alert("カメラまたはtargets.mindの読み込みに失敗しました: " + err.message);
+        startBtn.disabled = false;
+        startBtn.textContent = "▶ ARをスタート";
+      }
     });
   </script>
 </body>
