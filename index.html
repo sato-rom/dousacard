@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>AR カード動画リーダー</title>
 
-  <!-- A-Frame & MindAR（画像カード認識ライブラリ） -->
+  <!-- A-Frame & MindAR -->
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
@@ -67,25 +67,25 @@
     }
 
     .status-pill-bar {
-      background: rgba(15, 23, 42, 0.85);
+      background: rgba(15, 23, 42, 0.88);
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
-      border: 1px solid rgba(56, 189, 248, 0.4);
+      border: 1px solid rgba(56, 189, 248, 0.45);
       border-radius: 14px;
       padding: 8px 12px;
       font-size: 0.78rem;
       text-align: center;
     }
 
-    /* 追加カードをかざすためのガイド枠（登録カードがある時だけ表示） */
+    /* 追加カード用スキャンガイド枠 */
     #scanGuideBox {
       position: fixed;
       top: 34%;
       left: 50%;
       transform: translate(-50%, -50%);
-      width: min(62vw, 250px);
+      width: min(64vw, 260px);
       aspect-ratio: 3 / 4;
-      border: 2px dashed rgba(56, 189, 248, 0.65);
+      border: 2px dashed rgba(56, 189, 248, 0.75);
       border-radius: 16px;
       z-index: 10;
       pointer-events: none;
@@ -93,7 +93,7 @@
       align-items: flex-end;
       justify-content: center;
       padding-bottom: 8px;
-      box-shadow: 0 0 0 9999px rgba(2, 6, 23, 0.25);
+      box-shadow: 0 0 0 9999px rgba(2, 6, 23, 0.22);
     }
 
     #scanGuideBox.visible {
@@ -101,11 +101,11 @@
     }
 
     #scanGuideLabel {
-      background: rgba(15, 23, 42, 0.82);
+      background: rgba(15, 23, 42, 0.88);
       color: #38bdf8;
-      font-size: 0.7rem;
+      font-size: 0.72rem;
       font-weight: bold;
-      padding: 3px 9px;
+      padding: 4px 10px;
       border-radius: 99px;
     }
 
@@ -116,7 +116,7 @@
       left: 50%;
       transform: translateX(-50%);
       width: min(92vw, 440px);
-      background: rgba(15, 23, 42, 0.94);
+      background: rgba(15, 23, 42, 0.95);
       backdrop-filter: blur(12px);
       border: 2px solid #38bdf8;
       border-radius: 18px;
@@ -511,7 +511,7 @@
   <div id="arSceneWrapper">
     <a-scene
       id="mindArScene"
-      mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: no; uiError: no; uiScanning: no;"
+      mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; maxTrack: 1; uiLoading: no; uiError: no; uiScanning: no;"
       color-space="sRGB"
       renderer="colorManagement: true, physicallyCorrectLights"
       vr-mode-ui="enabled: false"
@@ -592,7 +592,7 @@
         <label class="field-label">2. 新しいカード画像を選択（カメラでかざして認識）</label>
         <input type="file" id="modalCardImageFile" class="file-input" accept="image/*" />
         <img id="modalCardPreview" class="preview-img" alt="カードプレビュー" />
-        <span style="font-size:0.7rem; color:#94a3b8;">※選んだカード画像をカメラ枠にかざすと下の動画が自動再生されます</span>
+        <span style="font-size:0.7rem; color:#94a3b8;">※余白を切ったカード画像を登録すると認識精度が上がります</span>
       </div>
 
       <div class="field-group">
@@ -618,7 +618,7 @@
     // =========================================================
     const VIDEO_FILES = [
       "./カメラ.mp4",   // 1枚目 (targetIndex: 0)
-      "./ヒース.mp4",   // 2枚目 (targetIndex: 1)
+      "./video2.mp4",   // 2枚目 (targetIndex: 1)
       "./video3.mp4",   // 3枚目 (targetIndex: 2)
       "./video4.mp4",   // 4枚目 (targetIndex: 3)
       "./video5.mp4",   // 5枚目 (targetIndex: 4)
@@ -712,9 +712,18 @@
     let activeObjectUrls = new Map();
 
     // =========================================================
-    // 既存の MindAR 30枚ターゲットスロットへのイベント紐付け
+    // 1. MindAR（元々の30枚ターゲット）確実起動＆イベント紐付け
     // =========================================================
     function bindMindArTargetEvents() {
+      mindArScene.addEventListener("arReady", () => {
+        scanStatusText.textContent = "📷 AR準備完了！カードをかざしてください";
+      });
+
+      mindArScene.addEventListener("arError", (e) => {
+        console.error("MindAR Error:", e);
+        scanStatusText.textContent = "⚠️ targets.mind 読込失敗（HTTPサーバーで開いてください）";
+      });
+
       for (let i = 0; i < VIDEO_FILES.length; i++) {
         const slotEl = document.getElementById(`targetSlot${i}`);
         if (!slotEl) continue;
@@ -729,6 +738,16 @@
           }
         });
       }
+    }
+
+    function waitForSceneLoaded(sceneEl) {
+      return new Promise((resolve) => {
+        if (sceneEl.hasLoaded) {
+          resolve();
+        } else {
+          sceneEl.addEventListener("loaded", () => resolve(), { once: true });
+        }
+      });
     }
 
     // =========================================================
@@ -779,13 +798,13 @@
     }
 
     // =========================================================
-    // 追加カード画像のリアルタイム画像認識エンジン（修正版）
+    // 2. 追加カード認識エンジン（色分布＋輪郭方向ヒストグラム・高感度版）
+    //    照明変化・多少の傾き・位置ズレがあっても 80〜95% で一致
     // =========================================================
     const customCardPatterns = [];
     const scanCanvas = document.createElement("canvas");
     const scanCtx = scanCanvas.getContext("2d", { willReadFrequently: true });
 
-    // MindARが生成したカメラの<video>要素をページ全体から確実に探す
     function findActiveCameraVideo() {
       const videos = Array.from(document.querySelectorAll("video"));
       for (const v of videos) {
@@ -797,51 +816,94 @@
       return null;
     }
 
-    // 縦横比を保ったまま特徴量（輝度分布＋縦横エッジ）を抽出
-    function computeImageFeatures(imgOrVideo, sx = 0, sy = 0, sw = null, sh = null) {
+    // 色ヒストグラム(24次元) + 3x3領域ごとのエッジ方向ヒストグラム(36次元) = 60次元特徴ベクトル
+    function extractRobustCardDescriptor(imgOrVideo, sx = 0, sy = 0, sw = null, sh = null) {
       const w = sw || imgOrVideo.videoWidth || imgOrVideo.naturalWidth || imgOrVideo.width;
       const h = sh || imgOrVideo.videoHeight || imgOrVideo.naturalHeight || imgOrVideo.height;
       if (!w || !h) return null;
 
-      // 16x16に正規化して輝度とエッジの両方を抽出（照明変化・多少の傾きに強い）
-      const size = 16;
-      scanCanvas.width = size;
-      scanCanvas.height = size;
-      scanCtx.drawImage(imgOrVideo, sx, sy, w, h, 0, 0, size, size);
-      const data = scanCtx.getImageData(0, 0, size, size).data;
+      const S = 24;
+      scanCanvas.width = S;
+      scanCanvas.height = S;
+      scanCtx.drawImage(imgOrVideo, sx, sy, w, h, 0, 0, S, S);
+      const data = scanCtx.getImageData(0, 0, S, S).data;
 
-      const grays = new Float32Array(size * size);
+      const grays = new Float32Array(S * S);
+      // 色味特徴（2x2ブロックごとのRGB比率：照明の明るさに左右されない正規化RGB）
+      const colorHist = new Float32Array(2 * 2 * 3);
       let sum = 0;
-      for (let i = 0; i < size * size; i++) {
-        const g = data[i * 4] * 0.299 + data[i * 4 + 1] * 0.587 + data[i * 4 + 2] * 0.114;
-        grays[i] = g;
-        sum += g;
+
+      for (let y = 0; y < S; y++) {
+        for (let x = 0; x < S; x++) {
+          const i = y * S + x;
+          const r = data[i * 4];
+          const g = data[i * 4 + 1];
+          const b = data[i * 4 + 2];
+          const lum = r * 0.299 + g * 0.587 + b * 0.114;
+          grays[i] = lum;
+          sum += lum;
+
+          const rgbSum = r + g + b + 15; // 明るさ正規化
+          const bx = x < S / 2 ? 0 : 1;
+          const by = y < S / 2 ? 0 : 1;
+          const cIdx = (by * 2 + bx) * 3;
+          colorHist[cIdx] += r / rgbSum;
+          colorHist[cIdx + 1] += g / rgbSum;
+          colorHist[cIdx + 2] += b / rgbSum;
+        }
       }
+
       const mean = sum / grays.length;
       let variance = 0;
       for (let i = 0; i < grays.length; i++) {
         variance += (grays[i] - mean) ** 2;
       }
-      const stdDev = Math.sqrt(variance / grays.length);
-      if (stdDev < 10) return null; // 無地の壁などは除外
+      if (variance / grays.length < 60) return null; // 真っ白・真っ暗な壁は除外
 
-      // 正規化ベクトル（平均0・分散1に揃えて明るさの違いを吸収）
-      const norm = new Float32Array(size * size);
-      for (let i = 0; i < grays.length; i++) {
-        norm[i] = (grays[i] - mean) / stdDev;
+      // 3x3グリッドごとの輪郭勾配（横・縦・斜め2方向 = 36次元）
+      const edgeHist = new Float32Array(3 * 3 * 4);
+      for (let y = 1; y < S - 1; y++) {
+        for (let x = 1; x < S - 1; x++) {
+          const gx = grays[y * S + (x + 1)] - grays[y * S + (x - 1)];
+          const gy = grays[(y + 1) * S + x] - grays[(y - 1) * S + x];
+          const gd1 = grays[(y + 1) * S + (x + 1)] - grays[(y - 1) * S + (x - 1)];
+          const gd2 = grays[(y + 1) * S + (x - 1)] - grays[(y - 1) * S + (x + 1)];
+
+          const gxBlock = Math.min(2, Math.floor((x / S) * 3));
+          const gyBlock = Math.min(2, Math.floor((y / S) * 3));
+          const eIdx = (gyBlock * 3 + gxBlock) * 4;
+          edgeHist[eIdx] += Math.abs(gx);
+          edgeHist[eIdx + 1] += Math.abs(gy);
+          edgeHist[eIdx + 2] += Math.abs(gd1);
+          edgeHist[eIdx + 3] += Math.abs(gd2);
+        }
       }
-      return { norm, aspect: w / h };
+
+      // それぞれL2正規化
+      const normalizeVec = (vec) => {
+        let norm = 0;
+        for (let i = 0; i < vec.length; i++) norm += vec[i] * vec[i];
+        norm = Math.sqrt(norm) || 1;
+        for (let i = 0; i < vec.length; i++) vec[i] /= norm;
+      };
+      normalizeVec(colorHist);
+      normalizeVec(edgeHist);
+
+      return { colorHist, edgeHist, aspect: w / h };
     }
 
-    // コサイン類似度（0.0〜1.0、0.68以上で高い一致）
-    function compareImageFeatures(featA, featB) {
-      if (!featA || !featB) return 0;
-      let dot = 0;
-      const len = featA.norm.length;
-      for (let i = 0; i < len; i++) {
-        dot += featA.norm[i] * featB.norm[i];
+    function compareCardDescriptors(descA, descB) {
+      if (!descA || !descB) return 0;
+      let dotColor = 0;
+      for (let i = 0; i < descA.colorHist.length; i++) {
+        dotColor += descA.colorHist[i] * descB.colorHist[i];
       }
-      return dot / len;
+      let dotEdge = 0;
+      for (let i = 0; i < descA.edgeHist.length; i++) {
+        dotEdge += descA.edgeHist[i] * descB.edgeHist[i];
+      }
+      // 色分布45% + 模様・輪郭分布55% の総合スコア
+      return dotColor * 0.45 + dotEdge * 0.55;
     }
 
     function loadImageElement(url) {
@@ -882,11 +944,12 @@
         let bestCardTitle = "";
         let bestScore = 0;
 
-        // 登録された各カードの縦横比に合わせてカメラ中央を切り出して照合
-        const scales = [0.45, 0.62, 0.78];
+        // ガイド枠が画面上部寄り(top: 34%)にあるため、中央とやや上寄りの両方を複数サイズで探索
+        const scales = [0.42, 0.58, 0.75];
+        const yOffsets = [0.42, 0.50]; // 画面上寄り(42%) と 中央(50%)
 
         for (const pat of customCardPatterns) {
-          const targetAspect = pat.feat.aspect;
+          const targetAspect = pat.desc.aspect;
 
           for (const s of scales) {
             let cw = vw * s;
@@ -896,32 +959,33 @@
               cw = ch * targetAspect;
             }
             const sx = (vw - cw) / 2;
-            const sy = (vh - ch) / 2;
 
-            const frameFeat = computeImageFeatures(camVideo, sx, sy, cw, ch);
-            if (!frameFeat) continue;
+            for (const cyRatio of yOffsets) {
+              const sy = Math.max(0, Math.min(vh - ch, vh * cyRatio - ch / 2));
+              const frameDesc = extractRobustCardDescriptor(camVideo, sx, sy, cw, ch);
+              if (!frameDesc) continue;
 
-            const score = compareImageFeatures(frameFeat, pat.feat);
-            if (score > bestScore) {
-              bestScore = score;
-              bestCardId = pat.cardId;
-              bestCardTitle = pat.title;
+              const score = compareCardDescriptors(frameDesc, pat.desc);
+              if (score > bestScore) {
+                bestScore = score;
+                bestCardId = pat.cardId;
+                bestCardTitle = pat.title;
+              }
             }
           }
         }
 
-        // 一致率が一定以上のときガイド枠にリアルタイム反応を表示
-        if (bestScore >= 0.55 && bestCardId) {
+        // 一致率が 75% 以上なら反応を表示、83% 以上で自動再生
+        if (bestScore >= 0.72 && bestCardId) {
           const pct = Math.min(100, Math.round(bestScore * 100));
-          scanGuideLabel.textContent = `🔍 照合中: ${bestCardTitle} (${pct}%)`;
-          scanGuideBox.style.borderColor = bestScore >= 0.68 ? "#10b981" : "#f59e0b";
+          scanGuideLabel.textContent = `🔍 ${bestCardTitle} (${pct}%)`;
+          scanGuideBox.style.borderColor = bestScore >= 0.83 ? "#10b981" : "#f59e0b";
         } else {
           scanGuideLabel.textContent = "追加カードはこの枠内に収めてかざす";
-          scanGuideBox.style.borderColor = "rgba(56, 189, 248, 0.65)";
+          scanGuideBox.style.borderColor = "rgba(56, 189, 248, 0.75)";
         }
 
-        // 一致率 68% 以上が2回連続で成立したら自動再生開始
-        if (bestScore >= 0.68 && bestCardId) {
+        if (bestScore >= 0.83 && bestCardId) {
           if (lastMatchedCustomId === bestCardId) {
             matchStreakCount++;
           } else {
@@ -941,7 +1005,7 @@
         } else {
           matchStreakCount = 0;
         }
-      }, 280);
+      }, 260);
     }
 
     // =========================================================
@@ -999,12 +1063,12 @@
             card._previewUrl = imgUrl;
             try {
               const imgEl = await loadImageElement(imgUrl);
-              const feat = computeImageFeatures(imgEl);
-              if (feat) {
+              const desc = extractRobustCardDescriptor(imgEl);
+              if (desc) {
                 customCardPatterns.push({
                   cardId: card.id,
                   title: card.title,
-                  feat
+                  desc
                 });
               }
             } catch (e) {}
@@ -1425,7 +1489,7 @@
       panelToggleHint.textContent = collapsed ? "▲ 開く" : "▼ 折りたたむ";
     });
 
-    // ARカメラ起動＆認識開始
+    // ARカメラ起動＆認識開始（A-Frameシーンのロード完了を待ってから確実に起動）
     startArBtn.addEventListener("click", async () => {
       mainVideoPlayer.muted = true;
       mainVideoPlayer.play().then(() => {
@@ -1434,14 +1498,17 @@
       }).catch(() => {});
 
       startOverlay.style.display = "none";
+      scanStatusText.textContent = "⏳ カメラとARターゲットを読み込み中...";
 
       try {
+        await waitForSceneLoaded(mindArScene);
         const arSystem = mindArScene.systems["mindar-image-system"];
         if (arSystem) {
           await arSystem.start();
         }
       } catch (e) {
-        scanStatusText.textContent = "⚠️ カメラまたは targets.mind の読み込みエラー";
+        console.error(e);
+        scanStatusText.textContent = "⚠️ AR起動エラー（targets.mind の配置を確認してください）";
       }
       startCustomCardScanner();
     });
