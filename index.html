@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>AR カード動画リーダー（お気に入り・連続再生対応）</title>
+  <title>AR カード動画リーダー（30枚一括設定・新規追加・お気に入り・連続再生）</title>
 
   <!-- A-Frame & MindAR（画像カード認識ライブラリ） -->
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
@@ -25,14 +25,12 @@
       overflow: hidden;
     }
 
-    /* ARシーン（全画面背景） */
     #arSceneWrapper {
       position: fixed;
       inset: 0;
       z-index: 1;
     }
 
-    /* 起動オーバーレイ */
     #startOverlay {
       position: fixed;
       inset: 0;
@@ -59,7 +57,6 @@
       cursor: pointer;
     }
 
-    /* 上部ステータスバー */
     .top-hud {
       position: fixed;
       top: 10px;
@@ -70,7 +67,7 @@
     }
 
     .status-pill-bar {
-      background: rgba(15, 23, 42, 0.82);
+      background: rgba(15, 23, 42, 0.85);
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
       border: 1px solid rgba(56, 189, 248, 0.4);
@@ -80,14 +77,13 @@
       text-align: center;
     }
 
-    /* 正面固定の連続再生・認識動画シアター枠 */
     #videoTheaterOverlay {
       position: fixed;
-      top: 58px;
+      top: 56px;
       left: 50%;
       transform: translateX(-50%);
       width: min(92vw, 440px);
-      background: rgba(15, 23, 42, 0.92);
+      background: rgba(15, 23, 42, 0.94);
       backdrop-filter: blur(12px);
       border: 2px solid #38bdf8;
       border-radius: 18px;
@@ -119,23 +115,22 @@
       font-size: 0.82rem;
     }
 
-    /* 下部ドロワー（カード一覧・お気に入り・連続再生操作） */
     .bottom-panel {
       position: fixed;
       left: 0;
       right: 0;
       bottom: 0;
       z-index: 30;
-      background: rgba(15, 23, 42, 0.9);
+      background: rgba(15, 23, 42, 0.92);
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
       border-top: 1px solid rgba(56, 189, 248, 0.35);
       border-radius: 20px 20px 0 0;
       padding: 12px 14px 20px;
-      max-height: 50dvh;
+      max-height: 54dvh;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 9px;
       transition: transform 0.25s ease;
     }
 
@@ -160,8 +155,8 @@
     .btn {
       border: none;
       border-radius: 11px;
-      padding: 10px 8px;
-      font-size: 0.8rem;
+      padding: 9px 8px;
+      font-size: 0.78rem;
       font-weight: bold;
       cursor: pointer;
       display: flex;
@@ -191,10 +186,9 @@
       color: #ffffff;
     }
 
-    /* フィルタータブ */
     .filter-row {
       display: flex;
-      gap: 6px;
+      gap: 5px;
     }
 
     .filter-tab {
@@ -204,7 +198,7 @@
       border: 1px solid #334155;
       background: #0f172a;
       color: #94a3b8;
-      font-size: 0.75rem;
+      font-size: 0.73rem;
       font-weight: bold;
       cursor: pointer;
     }
@@ -215,7 +209,18 @@
       color: #38bdf8;
     }
 
-    /* スクロール可能なカードリスト */
+    .open-add-modal-btn {
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: none;
+      background: #38bdf8;
+      color: #0f172a;
+      font-size: 0.74rem;
+      font-weight: bold;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
     .card-scroll-area {
       overflow-y: auto;
       display: flex;
@@ -232,7 +237,7 @@
       background: #0f172a;
       border: 1.5px solid #334155;
       border-radius: 12px;
-      padding: 9px 10px;
+      padding: 8px 10px;
     }
 
     .video-card-item.is-selected {
@@ -248,20 +253,20 @@
     .card-select-area {
       display: flex;
       align-items: center;
-      gap: 9px;
+      gap: 8px;
       flex: 1;
       overflow: hidden;
       cursor: pointer;
     }
 
     .check-box {
-      width: 21px;
-      height: 21px;
+      width: 20px;
+      height: 20px;
       border-radius: 6px;
       border: 2px solid #475569;
       background: #020617;
       color: #0f172a;
-      font-size: 0.78rem;
+      font-size: 0.75rem;
       font-weight: bold;
       display: flex;
       align-items: center;
@@ -274,8 +279,24 @@
       border-color: #38bdf8;
     }
 
+    .card-thumb {
+      width: 36px;
+      height: 36px;
+      border-radius: 7px;
+      object-fit: cover;
+      background: #1e293b;
+      border: 1px solid #475569;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: bold;
+      color: #94a3b8;
+    }
+
     .card-title-text {
-      font-size: 0.88rem;
+      font-size: 0.85rem;
       font-weight: bold;
       color: #f8fafc;
       white-space: nowrap;
@@ -284,26 +305,29 @@
     }
 
     .card-meta-text {
-      font-size: 0.7rem;
+      font-size: 0.68rem;
       color: #94a3b8;
       margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .card-right-btns {
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 4px;
       flex-shrink: 0;
     }
 
     .star-btn {
-      width: 34px;
-      height: 34px;
-      border-radius: 9px;
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
       border: 1px solid #475569;
       background: #1e293b;
       color: #64748b;
-      font-size: 1.1rem;
+      font-size: 0.95rem;
       cursor: pointer;
     }
 
@@ -314,55 +338,106 @@
     }
 
     .play-one-btn {
-      padding: 7px 10px;
-      border-radius: 9px;
+      padding: 6px 8px;
+      border-radius: 8px;
       border: 1px solid #38bdf8;
       background: #1e293b;
       color: #38bdf8;
-      font-size: 0.74rem;
+      font-size: 0.72rem;
       font-weight: bold;
       cursor: pointer;
     }
 
-    .add-row {
-      display: flex;
-      gap: 5px;
-      padding-top: 6px;
-      border-top: 1px dashed #334155;
+    .edit-btn {
+      padding: 6px 7px;
+      border-radius: 8px;
+      border: 1px solid #475569;
+      background: #1e293b;
+      color: #cbd5e1;
+      font-size: 0.72rem;
+      cursor: pointer;
     }
 
-    .mini-input {
-      flex: 1;
+    .del-btn {
+      padding: 6px 7px;
+      border-radius: 8px;
+      border: 1px solid #475569;
+      background: #1e293b;
+      color: #f87171;
+      font-size: 0.72rem;
+      cursor: pointer;
+    }
+
+    #addCardModal {
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 6, 23, 0.88);
+      backdrop-filter: blur(8px);
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    #addCardModal.open {
+      display: flex;
+    }
+
+    .modal-box {
+      width: min(94vw, 420px);
+      max-height: 88dvh;
+      overflow-y: auto;
+      background: #0f172a;
+      border: 1.5px solid #38bdf8;
+      border-radius: 18px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .field-label {
+      font-size: 0.78rem;
+      font-weight: bold;
+      color: #cbd5e1;
+    }
+
+    .text-input, .file-input {
+      width: 100%;
       background: #020617;
       border: 1px solid #475569;
       color: #f8fafc;
-      padding: 6px 8px;
-      border-radius: 8px;
-      font-size: 0.76rem;
-      min-width: 0;
+      padding: 9px 10px;
+      border-radius: 10px;
+      font-size: 0.82rem;
     }
 
-    .mini-add-btn {
-      background: #38bdf8;
-      color: #0f172a;
-      border: none;
-      border-radius: 8px;
-      padding: 6px 10px;
-      font-size: 0.76rem;
-      font-weight: bold;
-      cursor: pointer;
-      white-space: nowrap;
+    .preview-img {
+      width: 100%;
+      max-height: 130px;
+      object-fit: contain;
+      border-radius: 10px;
+      background: #020617;
+      border: 1px dashed #475569;
+      display: none;
     }
   </style>
 </head>
 <body>
 
-  <!-- 起動オーバーレイ（カメラ許可＆動画音声の再生許可） -->
+  <!-- 起動オーバーレイ -->
   <div id="startOverlay">
     <h2 style="font-size: 1.45rem; color: #38bdf8;">🎬 AR カード動画リーダー</h2>
-    <p style="color: #94a3b8; font-size: 0.88rem; line-height: 1.6;">
-      カメラにカードをかざすと動画を再生します。<br>
-      お気に入り（★）登録や、選んだカードの連続再生も可能です。
+    <p style="color: #94a3b8; font-size: 0.86rem; line-height: 1.6;">
+      30枚のARカードをかざすと自動で動画が流れます。<br>
+      新しいカード画像＆動画の追加、お気に入り、連続再生に対応。
     </p>
     <button id="startArBtn" type="button">▶ カメラ＆ARを起動する</button>
   </div>
@@ -370,7 +445,7 @@
   <!-- 上部ステータスHUD -->
   <div class="top-hud">
     <div class="status-pill-bar">
-      <span id="scanStatusText" style="color: #38bdf8; font-weight: bold;">📷 カードをかざすか下から選択</span>
+      <span id="scanStatusText" style="color: #38bdf8; font-weight: bold;">📷 カードをかざすと動画が流れます</span>
     </div>
   </div>
 
@@ -384,7 +459,7 @@
     <div id="theaterVideoTitle" style="font-size: 0.9rem; font-weight: bold; color: #f8fafc; text-align: center;"></div>
   </div>
 
-  <!-- A-Frame + MindAR カメラシーン（カード認識エンジン） -->
+  <!-- A-Frame + MindAR カメラシーン -->
   <div id="arSceneWrapper">
     <a-scene
       id="mindArScene"
@@ -395,20 +470,10 @@
       device-orientation-permission-ui="enabled: false"
     >
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-      <a-entity id="targetSlot0" mindar-image-target="targetIndex: 0"></a-entity>
-      <a-entity id="targetSlot1" mindar-image-target="targetIndex: 1"></a-entity>
-      <a-entity id="targetSlot2" mindar-image-target="targetIndex: 2"></a-entity>
-      <a-entity id="targetSlot3" mindar-image-target="targetIndex: 3"></a-entity>
-      <a-entity id="targetSlot4" mindar-image-target="targetIndex: 4"></a-entity>
-      <a-entity id="targetSlot5" mindar-image-target="targetIndex: 5"></a-entity>
-      <a-entity id="targetSlot6" mindar-image-target="targetIndex: 6"></a-entity>
-      <a-entity id="targetSlot7" mindar-image-target="targetIndex: 7"></a-entity>
-      <a-entity id="targetSlot8" mindar-image-target="targetIndex: 8"></a-entity>
-      <a-entity id="targetSlot9" mindar-image-target="targetIndex: 9"></a-entity>
     </a-scene>
   </div>
 
-  <!-- 下部操作パネル（お気に入り・選択カード連続再生） -->
+  <!-- 下部操作パネル -->
   <div class="bottom-panel" id="bottomPanel">
     <div class="panel-handle-row" id="panelToggleHeader">
       <span style="font-size: 0.9rem; font-weight: bold; color: #38bdf8;">🎬 動画カード一覧・連続再生</span>
@@ -424,36 +489,96 @@
 
     <div class="filter-row">
       <button type="button" class="filter-tab active" data-filter="all">すべて (<span id="cntAll">0</span>)</button>
-      <button type="button" class="filter-tab" data-filter="fav">★ お気に入り (<span id="cntFav">0</span>)</button>
-      <button type="button" class="filter-tab" data-filter="selected">☑ 選択中 (<span id="cntSel">0</span>)</button>
+      <button type="button" class="filter-tab" data-filter="fav">★ (<span id="cntFav">0</span>)</button>
+      <button type="button" class="filter-tab" data-filter="selected">☑ (<span id="cntSel">0</span>)</button>
+      <button type="button" class="open-add-modal-btn" id="openAddModalBtn">＋ 新規カード＆動画</button>
     </div>
 
     <div class="card-scroll-area" id="cardListContainer"></div>
+  </div>
 
-    <!-- 新規動画カード追加 & 選択解除 -->
-    <div class="add-row">
-      <input type="text" id="newCardTitle" class="mini-input" placeholder="カード名" />
-      <input type="text" id="newCardVideoUrl" class="mini-input" placeholder="./video1.mp4 や URL" />
-      <button type="button" id="addVideoCardBtn" class="mini-add-btn">＋追加</button>
-      <button type="button" id="clearSelBtn" class="mini-add-btn" style="background:#334155; color:#cbd5e1;">選択解除</button>
+  <!-- 新しいカード画像＆動画の登録 / 既存カード編集モーダル -->
+  <div id="addCardModal">
+    <div class="modal-box">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3 id="modalHeaderTitle" style="font-size:1rem; color:#38bdf8;">＋ 新しいカード＆動画を登録</h3>
+        <button type="button" id="closeAddModalBtn" style="background:none; border:none; color:#94a3b8; font-size:1.2rem; cursor:pointer;">✕</button>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">1. カード名（タイトル）</label>
+        <input type="text" id="modalCardTitle" class="text-input" placeholder="例：カード1、旅行の思い出" />
+      </div>
+
+      <div class="field-group" id="modalImageFieldGroup">
+        <label class="field-label">2. 新しいカード画像を選択（カメラでかざして認識）</label>
+        <input type="file" id="modalCardImageFile" class="file-input" accept="image/*" />
+        <img id="modalCardPreview" class="preview-img" alt="カードプレビュー" />
+        <span style="font-size:0.7rem; color:#94a3b8;">※選んだカード画像をカメラにかざすと下の動画が自動再生されます</span>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">3. 流す動画を選択（端末内の動画ファイル）</label>
+        <input type="file" id="modalVideoFile" class="file-input" accept="video/*" />
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">または 動画ファイル名 / URL を直接入力</label>
+        <input type="text" id="modalVideoUrl" class="text-input" placeholder="./video1.mp4 や https://..." />
+      </div>
+
+      <button type="button" id="saveNewCardBtn" class="btn btn-sel-seq" style="padding:12px; font-size:0.9rem;">
+        ✅ 保存する
+      </button>
     </div>
   </div>
 
   <script>
-    const DEFAULT_VIDEO_CARDS = [
-      {
-        targetIndex: 0,
-        title: "カード1：サンプル動画",
-        videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-        favorite: true
-      },
-      {
-        targetIndex: 1,
-        title: "カード2：サンプル動画",
-        videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
-        favorite: false
-      }
+    // =========================================================
+    // ★ ここに30枚分の動画ファイル名（またはURL）を一気に記入！
+    //    上から順に targetIndex 0 〜 29 に対応します
+    // =========================================================
+    const VIDEO_FILES = [
+      "./カメラ.mp4",   // 1枚目 (targetIndex: 0)
+      "./ヒース.mp4",   // 2枚目 (targetIndex: 1)
+      "./フレーム.mp4",   // 3枚目 (targetIndex: 2)
+      "./握手.mp4",   // 4枚目 (targetIndex: 3)
+      "./横に動く.mp4",   // 5枚目 (targetIndex: 4)
+      "./丸.mp4",   // 6枚目 (targetIndex: 5)
+      "./指す.mp4",   // 7枚目 (targetIndex: 6)
+      "./自分を指す.mp4",   // 8枚目 (targetIndex: 7)
+      "./手をつなく.mp4",   // 9枚目 (targetIndex: 8)
+      "./video10.mp4",  // 10枚目 (targetIndex: 9)
+      "./video11.mp4",  // 11枚目 (targetIndex: 10)
+      "./video12.mp4",  // 12枚目 (targetIndex: 11)
+      "./video13.mp4",  // 13枚目 (targetIndex: 12)
+      "./video14.mp4",  // 14枚目 (targetIndex: 13)
+      "./video15.mp4",  // 15枚目 (targetIndex: 14)
+      "./video16.mp4",  // 16枚目 (targetIndex: 15)
+      "./video17.mp4",  // 17枚目 (targetIndex: 16)
+      "./video18.mp4",  // 18枚目 (targetIndex: 17)
+      "./video19.mp4",  // 19枚目 (targetIndex: 18)
+      "./video20.mp4",  // 20枚目 (targetIndex: 19)
+      "./video21.mp4",  // 21枚目 (targetIndex: 20)
+      "./video22.mp4",  // 22枚目 (targetIndex: 21)
+      "./video23.mp4",  // 23枚目 (targetIndex: 22)
+      "./video24.mp4",  // 24枚目 (targetIndex: 23)
+      "./video25.mp4",  // 25枚目 (targetIndex: 24)
+      "./video26.mp4",  // 26枚目 (targetIndex: 25)
+      "./video27.mp4",  // 27枚目 (targetIndex: 26)
+      "./video28.mp4",  // 28枚目 (targetIndex: 27)
+      "./video29.mp4",  // 29枚目 (targetIndex: 28)
+      "./video30.mp4"   // 30枚目 (targetIndex: 29)
     ];
+
+    const DEFAULT_VIDEO_CARDS = VIDEO_FILES.map((file, i) => ({
+      id: `preset_${i}`,
+      type: "mindar",
+      targetIndex: i,
+      title: `カード ${i + 1}`,
+      videoUrl: file,
+      favorite: false
+    }));
 
     // DOM参照
     const startOverlay = document.getElementById("startOverlay");
@@ -475,7 +600,6 @@
     const playSelSeqBtn = document.getElementById("playSelSeqBtn");
     const nextVideoBtn = document.getElementById("nextVideoBtn");
     const stopVideoBtn = document.getElementById("stopVideoBtn");
-    const clearSelBtn = document.getElementById("clearSelBtn");
 
     const filterTabs = document.querySelectorAll(".filter-tab");
     const cntAll = document.getElementById("cntAll");
@@ -483,21 +607,219 @@
     const cntSel = document.getElementById("cntSel");
     const cardListContainer = document.getElementById("cardListContainer");
 
-    const newCardTitle = document.getElementById("newCardTitle");
-    const newCardVideoUrl = document.getElementById("newCardVideoUrl");
-    const addVideoCardBtn = document.getElementById("addVideoCardBtn");
+    const openAddModalBtn = document.getElementById("openAddModalBtn");
+    const addCardModal = document.getElementById("addCardModal");
+    const modalHeaderTitle = document.getElementById("modalHeaderTitle");
+    const modalImageFieldGroup = document.getElementById("modalImageFieldGroup");
+    const closeAddModalBtn = document.getElementById("closeAddModalBtn");
+    const modalCardTitle = document.getElementById("modalCardTitle");
+    const modalCardImageFile = document.getElementById("modalCardImageFile");
+    const modalCardPreview = document.getElementById("modalCardPreview");
+    const modalVideoFile = document.getElementById("modalVideoFile");
+    const modalVideoUrl = document.getElementById("modalVideoUrl");
+    const saveNewCardBtn = document.getElementById("saveNewCardBtn");
 
-    // 状態変数
     let videoCards = [];
     let selectedSet = new Set();
     let activeFilter = "all";
+    let editingCardIndex = -1;
 
-    // 連続再生キュー
     let playQueue = [];
     let queuePos = -1;
     let queueLabel = "";
     let currentPlayingIdx = -1;
+    let activeObjectUrls = new Map();
 
+    // =========================================================
+    // MindAR ターゲットスロット自動生成（VIDEO_FILES の枚数分）
+    // =========================================================
+    function initMindArTargetSlots() {
+      for (let i = 0; i < VIDEO_FILES.length; i++) {
+        const entity = document.createElement("a-entity");
+        entity.setAttribute("id", `targetSlot${i}`);
+        entity.setAttribute("mindar-image-target", `targetIndex: ${i}`);
+
+        entity.addEventListener("targetFound", () => {
+          const cardIdx = videoCards.findIndex(c => c.type !== "custom" && Number(c.targetIndex) === i);
+          const targetIdx = cardIdx !== -1 ? cardIdx : i;
+          if (videoCards[targetIdx] && currentPlayingIdx !== targetIdx) {
+            playQueue = [];
+            queuePos = -1;
+            playVideoCard(targetIdx, false);
+          }
+        });
+
+        mindArScene.appendChild(entity);
+      }
+    }
+
+    // =========================================================
+    // IndexedDB（新規カード画像・ローカル動画の永続保存）
+    // =========================================================
+    const DB_NAME = "ArCardVideoStorageDB_30";
+    const STORE_NAME = "mediaBlobs";
+
+    function openMediaDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            db.createObjectStore(STORE_NAME);
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function putBlobToDB(key, blob) {
+      const db = await openMediaDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        tx.objectStore(STORE_NAME).put(blob, key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function getBlobFromDB(key) {
+      const db = await openMediaDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, "readonly");
+        const req = tx.objectStore(STORE_NAME).get(key);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function deleteBlobFromDB(key) {
+      if (!key) return;
+      const db = await openMediaDB();
+      const tx = db.transaction(STORE_NAME, "readwrite");
+      tx.objectStore(STORE_NAME).delete(key);
+    }
+
+    // =========================================================
+    // 追加カード画像のリアルタイム画像認識エンジン
+    // =========================================================
+    const customCardPatterns = [];
+    const scanCanvas = document.createElement("canvas");
+    const scanCtx = scanCanvas.getContext("2d", { willReadFrequently: true });
+
+    function computeImageSignatureFromSource(imgOrVideo, sx = 0, sy = 0, sw = null, sh = null) {
+      const w = sw || imgOrVideo.videoWidth || imgOrVideo.naturalWidth || imgOrVideo.width;
+      const h = sh || imgOrVideo.videoHeight || imgOrVideo.naturalHeight || imgOrVideo.height;
+      if (!w || !h) return null;
+
+      scanCanvas.width = 17;
+      scanCanvas.height = 16;
+      scanCtx.drawImage(imgOrVideo, sx, sy, w, h, 0, 0, 17, 16);
+      const data = scanCtx.getImageData(0, 0, 17, 16).data;
+
+      let sum = 0;
+      const grays = new Float32Array(17 * 16);
+      for (let i = 0; i < 17 * 16; i++) {
+        const g = data[i * 4] * 0.299 + data[i * 4 + 1] * 0.587 + data[i * 4 + 2] * 0.114;
+        grays[i] = g;
+        sum += g;
+      }
+      const mean = sum / grays.length;
+      let variance = 0;
+      for (let i = 0; i < grays.length; i++) {
+        variance += (grays[i] - mean) ** 2;
+      }
+      if (variance / grays.length < 220) return null;
+
+      const bits = new Uint8Array(256);
+      let idx = 0;
+      for (let y = 0; y < 16; y++) {
+        for (let x = 0; x < 16; x++) {
+          bits[idx++] = grays[y * 17 + x] > grays[y * 17 + x + 1] ? 1 : 0;
+        }
+      }
+      return bits;
+    }
+
+    function signatureSimilarity(sigA, sigB) {
+      if (!sigA || !sigB || sigA.length !== sigB.length) return 0;
+      let match = 0;
+      for (let i = 0; i < sigA.length; i++) {
+        if (sigA[i] === sigB[i]) match++;
+      }
+      return match / sigA.length;
+    }
+
+    function loadImageElement(url) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = url;
+      });
+    }
+
+    let customScanTimer = null;
+    let lastMatchedCustomId = null;
+    let matchStreakCount = 0;
+
+    function startCustomCardScanner() {
+      if (customScanTimer) clearInterval(customScanTimer);
+
+      customScanTimer = setInterval(() => {
+        if (customCardPatterns.length === 0) return;
+        const camVideo = document.querySelector("#arSceneWrapper video");
+        if (!camVideo || camVideo.readyState < 2 || !camVideo.videoWidth) return;
+
+        const vw = camVideo.videoWidth;
+        const vh = camVideo.videoHeight;
+
+        const scales = [0.65, 0.45, 0.85];
+        let bestCardId = null;
+        let bestScore = 0;
+
+        for (const s of scales) {
+          const cw = vw * s;
+          const ch = vh * s;
+          const sx = (vw - cw) / 2;
+          const sy = (vh - ch) / 2;
+          const frameSig = computeImageSignatureFromSource(camVideo, sx, sy, cw, ch);
+          if (!frameSig) continue;
+
+          for (const pat of customCardPatterns) {
+            const score = signatureSimilarity(frameSig, pat.sig);
+            if (score > bestScore) {
+              bestScore = score;
+              bestCardId = pat.cardId;
+            }
+          }
+        }
+
+        if (bestScore >= 0.81 && bestCardId) {
+          if (lastMatchedCustomId === bestCardId) {
+            matchStreakCount++;
+          } else {
+            lastMatchedCustomId = bestCardId;
+            matchStreakCount = 1;
+          }
+
+          if (matchStreakCount >= 2) {
+            const targetIdx = videoCards.findIndex(c => c.id === bestCardId);
+            if (targetIdx !== -1 && currentPlayingIdx !== targetIdx) {
+              playQueue = [];
+              queuePos = -1;
+              playVideoCard(targetIdx, false);
+            }
+          }
+        } else {
+          matchStreakCount = 0;
+        }
+      }, 350);
+    }
+
+    // =========================================================
+    // URL解決 & カードデータ読み込み（コードの VIDEO_FILES 変更も自動反映）
+    // =========================================================
     function normalizeMediaUrl(raw) {
       const s = (raw || "").trim();
       if (!s) return "";
@@ -512,26 +834,74 @@
         } catch (e) {}
         return s;
       }
-      if (/^(\.\/|\.\.\/|\/)/i.test(s)) return s;
+      if (/^(\.\/|\.\.\/|\/|blob:)/i.test(s)) return s;
       return `./${s}`;
     }
 
-    function resolvePlayableUrl(raw) {
-      const norm = normalizeMediaUrl(raw);
-      if (/^https?:\/\//i.test(norm)) return norm;
+    async function resolveCardVideoSrc(card) {
+      if (card.videoBlobKey) {
+        if (activeObjectUrls.has(card.videoBlobKey)) {
+          return activeObjectUrls.get(card.videoBlobKey);
+        }
+        const blob = await getBlobFromDB(card.videoBlobKey);
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          activeObjectUrls.set(card.videoBlobKey, url);
+          return url;
+        }
+      }
+      const norm = normalizeMediaUrl(card.videoUrl);
+      if (/^(https?:\/\/|blob:)/i.test(norm)) return norm;
       const full = new URL(norm, window.location.href).href;
       return encodeURI(decodeURI(full));
     }
 
-    function loadCardsFromLocal() {
-      const saved = JSON.parse(localStorage.getItem("ar_video_cards_v1") || "null");
-      videoCards = Array.isArray(saved) && saved.length > 0
-        ? saved
-        : DEFAULT_VIDEO_CARDS.map(c => ({ ...c }));
+    async function hydrateCustomMedia() {
+      customCardPatterns.length = 0;
+      for (const card of videoCards) {
+        if (card.imageBlobKey) {
+          let imgUrl = activeObjectUrls.get(card.imageBlobKey);
+          if (!imgUrl) {
+            const blob = await getBlobFromDB(card.imageBlobKey);
+            if (blob) {
+              imgUrl = URL.createObjectURL(blob);
+              activeObjectUrls.set(card.imageBlobKey, imgUrl);
+            }
+          }
+          if (imgUrl) {
+            card._previewUrl = imgUrl;
+            try {
+              const imgEl = await loadImageElement(imgUrl);
+              const sig = computeImageSignatureFromSource(imgEl);
+              if (sig) {
+                customCardPatterns.push({ cardId: card.id, sig });
+              }
+            } catch (e) {}
+          }
+        }
+      }
+    }
+
+    async function loadCardsFromLocal() {
+      const saved = JSON.parse(localStorage.getItem("ar_video_cards_30_v2") || "null");
+      if (Array.isArray(saved) && saved.length > 0) {
+        // コード上の VIDEO_FILES を書き換えた場合も自動同期（個別編集済み除く）
+        videoCards = saved.map(card => {
+          if (card.type === "mindar" && !card.manualEdited && VIDEO_FILES[card.targetIndex] !== undefined) {
+            return { ...card, videoUrl: VIDEO_FILES[card.targetIndex] };
+          }
+          return card;
+        });
+      } else {
+        videoCards = DEFAULT_VIDEO_CARDS.map(c => ({ ...c }));
+      }
+      await hydrateCustomMedia();
+      renderCardList();
     }
 
     function saveCards() {
-      localStorage.setItem("ar_video_cards_v1", JSON.stringify(videoCards));
+      const clean = videoCards.map(({ _previewUrl, ...rest }) => rest);
+      localStorage.setItem("ar_video_cards_30_v2", JSON.stringify(clean));
       renderCardList();
     }
 
@@ -548,11 +918,11 @@
       queuePos = -1;
       queueLabel = "";
       currentPlayingIdx = -1;
-      scanStatusText.textContent = "📷 カードをかざすか下から選択";
+      scanStatusText.textContent = "📷 カードをかざすと動画が流れます";
       renderCardList();
     }
 
-    function playVideoCard(idx, fromQueue = false) {
+    async function playVideoCard(idx, fromQueue = false) {
       const card = videoCards[idx];
       if (!card) {
         stopVideoPlayback();
@@ -562,20 +932,20 @@
       currentPlayingIdx = idx;
       videoTheaterOverlay.classList.add("active");
 
-      // 動画の音声を有効化（※完全無音で流したい場合はここを mainVideoPlayer.muted = true; に変更）
+      const srcUrl = await resolveCardVideoSrc(card);
       mainVideoPlayer.muted = false;
-      mainVideoPlayer.src = resolvePlayableUrl(card.videoUrl);
+      mainVideoPlayer.src = srcUrl;
 
       if (fromQueue && playQueue.length > 0) {
         theaterQueueBadge.textContent = `${queueLabel}（${queuePos + 1} / ${playQueue.length}本目）`;
       } else {
-        theaterQueueBadge.textContent = `▶ カード ${idx + 1} 再生中`;
+        theaterQueueBadge.textContent = `▶ カード認識・再生中`;
       }
       theaterVideoTitle.textContent = `${card.favorite ? "★ " : ""}${card.title}`;
       scanStatusText.textContent = `🎬 再生中: ${card.title}`;
 
       mainVideoPlayer.play().catch(() => {
-        theaterVideoTitle.textContent = `❌ 動画の読み込みに失敗: ${card.videoUrl}`;
+        theaterVideoTitle.textContent = `❌ 動画を再生できませんでした: ${card.videoUrl || card.title}`;
       });
 
       renderCardList();
@@ -636,31 +1006,129 @@
     stopVideoBtn.addEventListener("click", stopVideoPlayback);
     closeTheaterBtn.addEventListener("click", stopVideoPlayback);
 
-    clearSelBtn.addEventListener("click", () => {
-      selectedSet.clear();
-      renderCardList();
+    // =========================================================
+    // 新しいカード画像＆動画の登録 / 既存カード編集モーダル
+    // =========================================================
+    function openCardModal(editIdx = -1) {
+      editingCardIndex = editIdx;
+      modalCardImageFile.value = "";
+      modalVideoFile.value = "";
+
+      if (editIdx >= 0 && videoCards[editIdx]) {
+        const c = videoCards[editIdx];
+        modalHeaderTitle.textContent = `✎「${c.title}」の動画を編集`;
+        modalCardTitle.value = c.title;
+        modalVideoUrl.value = c.videoUrl || "";
+        modalImageFieldGroup.style.display = c.type === "custom" ? "flex" : "none";
+        if (c._previewUrl) {
+          modalCardPreview.src = c._previewUrl;
+          modalCardPreview.style.display = "block";
+        } else {
+          modalCardPreview.style.display = "none";
+        }
+      } else {
+        modalHeaderTitle.textContent = "＋ 新しいカード＆動画を登録";
+        modalCardTitle.value = "";
+        modalVideoUrl.value = "";
+        modalImageFieldGroup.style.display = "flex";
+        modalCardPreview.style.display = "none";
+      }
+      addCardModal.classList.add("open");
+    }
+
+    openAddModalBtn.addEventListener("click", () => openCardModal(-1));
+
+    closeAddModalBtn.addEventListener("click", () => {
+      addCardModal.classList.remove("open");
+    });
+
+    modalCardImageFile.addEventListener("change", () => {
+      const file = modalCardImageFile.files[0];
+      if (!file) {
+        modalCardPreview.style.display = "none";
+        return;
+      }
+      modalCardPreview.src = URL.createObjectURL(file);
+      modalCardPreview.style.display = "block";
+    });
+
+    saveNewCardBtn.addEventListener("click", async () => {
+      const imgFile = modalCardImageFile.files[0];
+      const vidFile = modalVideoFile.files[0];
+      const rawUrl = normalizeMediaUrl(modalVideoUrl.value);
+
+      if (editingCardIndex >= 0) {
+        const target = videoCards[editingCardIndex];
+        target.title = modalCardTitle.value.trim() || target.title;
+        target.manualEdited = true;
+
+        if (imgFile && target.type === "custom") {
+          const imgKey = target.imageBlobKey || `img_${target.id}`;
+          await putBlobToDB(imgKey, imgFile);
+          target.imageBlobKey = imgKey;
+          activeObjectUrls.delete(imgKey);
+        }
+        if (vidFile) {
+          const vidKey = target.videoBlobKey || `vid_${target.id}`;
+          await putBlobToDB(vidKey, vidFile);
+          target.videoBlobKey = vidKey;
+          target.videoUrl = "";
+          activeObjectUrls.delete(vidKey);
+        } else if (rawUrl) {
+          if (target.videoBlobKey) {
+            await deleteBlobFromDB(target.videoBlobKey);
+            activeObjectUrls.delete(target.videoBlobKey);
+            target.videoBlobKey = null;
+          }
+          target.videoUrl = rawUrl;
+        }
+
+        await hydrateCustomMedia();
+        saveCards();
+        addCardModal.classList.remove("open");
+        scanStatusText.textContent = `✅「${target.title}」を更新しました`;
+        return;
+      }
+
+      if (!vidFile && !rawUrl) {
+        alert("動画ファイルを選択するか、動画URLを入力してください。");
+        return;
+      }
+
+      const newId = `custom_${Date.now()}`;
+      const title = modalCardTitle.value.trim() || `追加カード ${videoCards.length + 1}`;
+
+      let imageBlobKey = null;
+      if (imgFile) {
+        imageBlobKey = `img_${newId}`;
+        await putBlobToDB(imageBlobKey, imgFile);
+      }
+
+      let videoBlobKey = null;
+      if (vidFile) {
+        videoBlobKey = `vid_${newId}`;
+        await putBlobToDB(videoBlobKey, vidFile);
+      }
+
+      videoCards.push({
+        id: newId,
+        type: imageBlobKey ? "custom" : "mindar",
+        targetIndex: videoCards.length,
+        title,
+        imageBlobKey,
+        videoBlobKey,
+        videoUrl: rawUrl,
+        favorite: false
+      });
+
+      await hydrateCustomMedia();
+      saveCards();
+      addCardModal.classList.remove("open");
+      scanStatusText.textContent = `✅「${title}」を登録しました（かざして再生OK）`;
     });
 
     // =========================================================
-    // カメラでのARカード読み取りイベント（targetIndex 0〜9）
-    // =========================================================
-    for (let i = 0; i < 10; i++) {
-      const slotEl = document.getElementById(`targetSlot${i}`);
-      if (!slotEl) continue;
-
-      slotEl.addEventListener("targetFound", () => {
-        const cardIdx = videoCards.findIndex(c => Number(c.targetIndex) === i);
-        const targetIdx = cardIdx !== -1 ? cardIdx : i;
-        if (videoCards[targetIdx] && currentPlayingIdx !== targetIdx) {
-          playQueue = [];
-          queuePos = -1;
-          playVideoCard(targetIdx, false);
-        }
-      });
-    }
-
-    // =========================================================
-    // カード一覧描画（お気に入り切替・複数選択・個別再生）
+    // カード一覧描画
     // =========================================================
     function escapeHtml(str) {
       return String(str).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
@@ -702,11 +1170,22 @@
 
         const left = document.createElement("div");
         left.className = "card-select-area";
+
+        const thumbHtml = card._previewUrl
+          ? `<img src="${card._previewUrl}" class="card-thumb" alt="card" />`
+          : `<div class="card-thumb">#${(card.targetIndex ?? idx) + 1}</div>`;
+
+        const videoSourceLabel = card.videoBlobKey ? "端末動画" : (card.videoUrl || "未設定");
+        const badgeText = card.type === "custom"
+          ? `登録カード ・ ${videoSourceLabel}`
+          : `AR #${card.targetIndex} ・ ${videoSourceLabel}`;
+
         left.innerHTML = `
           <div class="check-box">${isSel ? "✓" : ""}</div>
+          ${thumbHtml}
           <div style="overflow:hidden;">
-            <div class="card-title-text">${idx + 1}. ${escapeHtml(card.title)}</div>
-            <div class="card-meta-text">マーカー #${card.targetIndex ?? idx} ・ ${isSel ? "連続再生に選択中" : "タップで選択"}</div>
+            <div class="card-title-text">${escapeHtml(card.title)}</div>
+            <div class="card-meta-text">${escapeHtml(badgeText)}</div>
           </div>
         `;
         left.addEventListener("click", () => {
@@ -734,7 +1213,7 @@
         const playBtn = document.createElement("button");
         playBtn.type = "button";
         playBtn.className = "play-one-btn";
-        playBtn.textContent = isPlay ? "🎬 再生中" : "▶ 再生";
+        playBtn.textContent = isPlay ? "🎬 再生" : "▶";
         playBtn.addEventListener("click", (e) => {
           e.stopPropagation();
           playQueue = [];
@@ -742,8 +1221,36 @@
           playVideoCard(idx, false);
         });
 
+        const editBtn = document.createElement("button");
+        editBtn.type = "button";
+        editBtn.className = "edit-btn";
+        editBtn.textContent = "✎";
+        editBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          openCardModal(idx);
+        });
+
         right.appendChild(starBtn);
         right.appendChild(playBtn);
+        right.appendChild(editBtn);
+
+        if (card.type === "custom") {
+          const delBtn = document.createElement("button");
+          delBtn.type = "button";
+          delBtn.className = "del-btn";
+          delBtn.textContent = "🗑";
+          delBtn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            if (!confirm(`「${card.title}」を削除しますか？`)) return;
+            await deleteBlobFromDB(card.imageBlobKey);
+            await deleteBlobFromDB(card.videoBlobKey);
+            videoCards.splice(idx, 1);
+            await hydrateCustomMedia();
+            saveCards();
+          });
+          right.appendChild(delBtn);
+        }
+
         row.appendChild(left);
         row.appendChild(right);
         cardListContainer.appendChild(row);
@@ -759,28 +1266,12 @@
       });
     });
 
-    addVideoCardBtn.addEventListener("click", () => {
-      const url = normalizeMediaUrl(newCardVideoUrl.value);
-      if (!url) return;
-      const title = newCardTitle.value.trim() || `カード${videoCards.length + 1}：動画`;
-      videoCards.push({
-        targetIndex: videoCards.length,
-        title,
-        videoUrl: url,
-        favorite: false
-      });
-      newCardTitle.value = "";
-      newCardVideoUrl.value = "";
-      saveCards();
-    });
-
-    // 下部ドロワー開閉
     panelToggleHeader.addEventListener("click", () => {
       const collapsed = bottomPanel.classList.toggle("collapsed");
       panelToggleHint.textContent = collapsed ? "▲ 開く" : "▼ 折りたたむ";
     });
 
-    // ARカメラ起動＆ブラウザの自動再生ロック解除
+    // ARカメラ起動＆認識開始
     startArBtn.addEventListener("click", async () => {
       mainVideoPlayer.play().then(() => mainVideoPlayer.pause()).catch(() => {});
       startOverlay.style.display = "none";
@@ -791,13 +1282,14 @@
           await arSystem.start();
         }
       } catch (e) {
-        scanStatusText.textContent = "📋 リストからカードを選んで再生できます";
+        scanStatusText.textContent = "⚠️ カメラ許可を確認してください";
       }
+      startCustomCardScanner();
     });
 
     // 初期化
+    initMindArTargetSlots();
     loadCardsFromLocal();
-    renderCardList();
   </script>
 </body>
 </html>
