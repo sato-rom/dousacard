@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>AR サウンドカード＆連続再生システム</title>
+  <title>AR カード動画リーダー（お気に入り・連続再生対応）</title>
 
-  <!-- Firebase App & Firestore SDK -->
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <!-- A-Frame & MindAR（画像カード認識ライブラリ） -->
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
   <style>
     * {
@@ -20,42 +20,23 @@
       background: #020617;
       color: #f8fafc;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      min-height: 100dvh;
-      overflow-x: hidden;
-      display: flex;
-      flex-direction: column;
+      width: 100vw;
+      height: 100dvh;
+      overflow: hidden;
     }
 
-    /* 背景カメラ映像（AR空間ベース・正面固定） */
-    #arCameraBg {
+    /* ARシーン（全画面背景） */
+    #arSceneWrapper {
       position: fixed;
       inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      z-index: 0;
-      background: #090d16;
+      z-index: 1;
     }
 
-    /* AR空間上の固定オーバーレイレイヤー */
-    .ar-hud-layer {
-      position: relative;
-      z-index: 10;
-      width: 100%;
-      max-width: 520px;
-      margin: 0 auto;
-      padding: 14px 14px 48px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      min-height: 100dvh;
-    }
-
-    /* 起動オーバーレイ（音声ロック解除＆カメラ起動） */
-    #arStartOverlay {
+    /* 起動オーバーレイ */
+    #startOverlay {
       position: fixed;
       inset: 0;
-      background: rgba(2, 6, 23, 0.94);
+      background: rgba(2, 6, 23, 0.95);
       z-index: 9999;
       display: flex;
       flex-direction: column;
@@ -66,7 +47,7 @@
       gap: 16px;
     }
 
-    #arStartBtn {
+    #startArBtn {
       padding: 18px 36px;
       font-size: 1.15rem;
       font-weight: bold;
@@ -78,131 +59,123 @@
       cursor: pointer;
     }
 
-    /* 半透明グラスモーフィズムカード */
-    .glass-card {
-      background: rgba(15, 23, 42, 0.78);
+    /* 上部ステータスバー */
+    .top-hud {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      z-index: 20;
+      pointer-events: none;
+    }
+
+    .status-pill-bar {
+      background: rgba(15, 23, 42, 0.82);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      border-radius: 14px;
+      padding: 8px 12px;
+      font-size: 0.8rem;
+      text-align: center;
+    }
+
+    /* 正面固定の連続再生・認識動画シアター枠 */
+    #videoTheaterOverlay {
+      position: fixed;
+      top: 58px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(92vw, 440px);
+      background: rgba(15, 23, 42, 0.92);
       backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(56, 189, 248, 0.35);
+      border: 2px solid #38bdf8;
       border-radius: 18px;
-      padding: 14px;
+      padding: 10px;
+      z-index: 25;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65);
+    }
+
+    #videoTheaterOverlay.active {
+      display: flex;
+    }
+
+    #mainVideoPlayer {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #000;
+      border-radius: 12px;
+      object-fit: contain;
+    }
+
+    .theater-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 0.82rem;
+    }
+
+    /* 下部ドロワー（カード一覧・お気に入り・連続再生操作） */
+    .bottom-panel {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 30;
+      background: rgba(15, 23, 42, 0.9);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-top: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 20px 20px 0 0;
+      padding: 12px 14px 20px;
+      max-height: 50dvh;
       display: flex;
       flex-direction: column;
       gap: 10px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+      transition: transform 0.25s ease;
     }
 
-    .top-bar {
+    .bottom-panel.collapsed {
+      transform: translateY(calc(100% - 50px));
+    }
+
+    .panel-handle-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 8px;
+      cursor: pointer;
     }
 
-    .app-badge {
-      font-size: 1.02rem;
-      font-weight: 800;
-      color: #38bdf8;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .always-on-pill {
-      background: rgba(16, 185, 129, 0.22);
-      border: 1px solid rgba(16, 185, 129, 0.55);
-      color: #34d399;
-      font-size: 0.72rem;
-      font-weight: bold;
-      padding: 4px 10px;
-      border-radius: 99px;
-    }
-
-    .sync-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 6px;
-      font-size: 0.74rem;
-      color: #94a3b8;
-      background: rgba(2, 6, 23, 0.65);
-      padding: 6px 10px;
-      border-radius: 10px;
-      border: 1px solid #1e293b;
-    }
-
-    /* AR中央の固定ホログラムカード表示枠（角度調整なし・正面固定） */
-    .ar-stage-card {
-      background: linear-gradient(145deg, rgba(14, 116, 144, 0.32), rgba(15, 23, 42, 0.85));
-      border: 2px solid #38bdf8;
-      border-radius: 20px;
-      padding: 18px 16px;
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-      box-shadow: 0 0 24px rgba(56, 189, 248, 0.25);
-    }
-
-    .ar-stage-card.playing {
-      border-color: #10b981;
-      box-shadow: 0 0 28px rgba(16, 185, 129, 0.45);
-    }
-
-    .ar-now-label {
-      font-size: 0.75rem;
-      font-weight: bold;
-      color: #38bdf8;
-      letter-spacing: 0.05em;
-    }
-
-    .ar-now-title {
-      font-size: 1.2rem;
-      font-weight: 800;
-      color: #ffffff;
-      word-break: break-word;
-    }
-
-    .ar-queue-info {
-      font-size: 0.78rem;
-      color: #cbd5e1;
-      background: rgba(2, 6, 23, 0.6);
-      padding: 4px 12px;
-      border-radius: 99px;
-    }
-
-    /* 連続再生コントロールボタン群 */
-    .control-grid {
+    .control-btn-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 8px;
+      gap: 7px;
     }
 
-    .action-btn {
+    .btn {
       border: none;
-      border-radius: 12px;
-      padding: 12px 10px;
-      font-size: 0.84rem;
+      border-radius: 11px;
+      padding: 10px 8px;
+      font-size: 0.8rem;
       font-weight: bold;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 5px;
-      transition: transform 0.08s ease, opacity 0.15s ease;
     }
 
-    .action-btn:active {
-      transform: scale(0.97);
-    }
-
-    .btn-fav-play {
+    .btn-fav-seq {
       background: linear-gradient(135deg, #f59e0b, #d97706);
       color: #0f172a;
     }
 
-    .btn-sel-play {
+    .btn-sel-seq {
       background: linear-gradient(135deg, #10b981, #059669);
       color: #ffffff;
     }
@@ -218,90 +191,91 @@
       color: #ffffff;
     }
 
-    /* フィルタータブ（すべて / お気に入り / 選択中） */
-    .filter-tabs {
+    /* フィルタータブ */
+    .filter-row {
       display: flex;
       gap: 6px;
     }
 
-    .tab-btn {
+    .filter-tab {
       flex: 1;
-      padding: 8px 6px;
-      border-radius: 10px;
+      padding: 6px 4px;
+      border-radius: 8px;
       border: 1px solid #334155;
-      background: rgba(15, 23, 42, 0.85);
+      background: #0f172a;
       color: #94a3b8;
-      font-size: 0.78rem;
+      font-size: 0.75rem;
       font-weight: bold;
       cursor: pointer;
     }
 
-    .tab-btn.active {
-      background: rgba(56, 189, 248, 0.2);
+    .filter-tab.active {
       border-color: #38bdf8;
+      background: rgba(56, 189, 248, 0.2);
       color: #38bdf8;
     }
 
-    /* ARカード一覧 */
-    .card-list {
+    /* スクロール可能なカードリスト */
+    .card-scroll-area {
+      overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 7px;
+      padding-right: 2px;
     }
 
-    .ar-sound-card {
+    .video-card-item {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
-      background: rgba(15, 23, 42, 0.88);
+      gap: 8px;
+      background: #0f172a;
       border: 1.5px solid #334155;
-      border-radius: 14px;
-      padding: 11px 12px;
-      transition: border-color 0.15s ease, background 0.15s ease;
+      border-radius: 12px;
+      padding: 9px 10px;
     }
 
-    .ar-sound-card.selected-card {
+    .video-card-item.is-selected {
       border-color: #38bdf8;
-      background: rgba(14, 116, 144, 0.24);
+      background: rgba(14, 116, 144, 0.25);
     }
 
-    .ar-sound-card.now-playing-card {
+    .video-card-item.is-playing {
       border-color: #10b981;
       background: rgba(16, 185, 129, 0.22);
     }
 
-    .card-left {
+    .card-select-area {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 9px;
       flex: 1;
       overflow: hidden;
       cursor: pointer;
     }
 
-    .select-check {
-      width: 22px;
-      height: 22px;
+    .check-box {
+      width: 21px;
+      height: 21px;
       border-radius: 6px;
       border: 2px solid #475569;
+      background: #020617;
+      color: #0f172a;
+      font-size: 0.78rem;
+      font-weight: bold;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 0.8rem;
-      font-weight: bold;
-      color: #0f172a;
-      background: #020617;
       flex-shrink: 0;
     }
 
-    .ar-sound-card.selected-card .select-check {
+    .video-card-item.is-selected .check-box {
       background: #38bdf8;
       border-color: #38bdf8;
     }
 
-    .card-title {
-      font-size: 0.92rem;
+    .card-title-text {
+      font-size: 0.88rem;
       font-weight: bold;
       color: #f8fafc;
       white-space: nowrap;
@@ -309,74 +283,72 @@
       text-overflow: ellipsis;
     }
 
-    .card-sub {
-      font-size: 0.72rem;
+    .card-meta-text {
+      font-size: 0.7rem;
       color: #94a3b8;
       margin-top: 2px;
     }
 
-    .card-actions {
+    .card-right-btns {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
       flex-shrink: 0;
     }
 
-    .fav-star-btn {
-      width: 36px;
-      height: 36px;
-      border-radius: 10px;
+    .star-btn {
+      width: 34px;
+      height: 34px;
+      border-radius: 9px;
       border: 1px solid #475569;
-      background: #0f172a;
+      background: #1e293b;
       color: #64748b;
-      font-size: 1.15rem;
+      font-size: 1.1rem;
       cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
     }
 
-    .fav-star-btn.is-fav {
+    .star-btn.active {
       border-color: #f59e0b;
-      background: rgba(245, 158, 11, 0.18);
+      background: rgba(245, 158, 11, 0.2);
       color: #fbbf24;
     }
 
-    .single-play-btn {
-      padding: 8px 11px;
-      border-radius: 10px;
+    .play-one-btn {
+      padding: 7px 10px;
+      border-radius: 9px;
       border: 1px solid #38bdf8;
-      background: #0f172a;
+      background: #1e293b;
       color: #38bdf8;
-      font-size: 0.76rem;
+      font-size: 0.74rem;
       font-weight: bold;
       cursor: pointer;
     }
 
-    /* 共有グループID＆曲追加フォーム */
-    .compact-row {
+    .add-row {
       display: flex;
-      align-items: center;
-      gap: 6px;
+      gap: 5px;
+      padding-top: 6px;
+      border-top: 1px dashed #334155;
     }
 
-    .text-input {
+    .mini-input {
       flex: 1;
       background: #020617;
       border: 1px solid #475569;
       color: #f8fafc;
-      padding: 8px 10px;
-      border-radius: 10px;
-      font-size: 0.82rem;
+      padding: 6px 8px;
+      border-radius: 8px;
+      font-size: 0.76rem;
+      min-width: 0;
     }
 
-    .mini-btn {
-      padding: 8px 12px;
-      border-radius: 10px;
-      border: none;
+    .mini-add-btn {
       background: #38bdf8;
       color: #0f172a;
-      font-size: 0.8rem;
+      border: none;
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 0.76rem;
       font-weight: bold;
       cursor: pointer;
       white-space: nowrap;
@@ -385,573 +357,447 @@
 </head>
 <body>
 
-  <!-- 背景ARカメラ（正面固定） -->
-  <video id="arCameraBg" autoplay muted playsinline></video>
-
-  <!-- 起動オーバーレイ -->
-  <div id="arStartOverlay">
-    <h2 style="font-size: 1.45rem; color: #38bdf8;">🥽 AR サウンドカード</h2>
-    <p style="color: #94a3b8; font-size: 0.9rem; line-height: 1.6;">
-      音声は常にON状態で起動します。<br>お気に入り（★）や複数選択したカードを連続で再生できます。
+  <!-- 起動オーバーレイ（カメラ許可＆動画音声の再生許可） -->
+  <div id="startOverlay">
+    <h2 style="font-size: 1.45rem; color: #38bdf8;">🎬 AR カード動画リーダー</h2>
+    <p style="color: #94a3b8; font-size: 0.88rem; line-height: 1.6;">
+      カメラにカードをかざすと動画を再生します。<br>
+      お気に入り（★）登録や、選んだカードの連続再生も可能です。
     </p>
-    <button id="arStartBtn" type="button">▶ ARビューを起動する</button>
+    <button id="startArBtn" type="button">▶ カメラ＆ARを起動する</button>
   </div>
 
-  <!-- AR固定HUDレイヤー -->
-  <div class="ar-hud-layer">
+  <!-- 上部ステータスHUD -->
+  <div class="top-hud">
+    <div class="status-pill-bar">
+      <span id="scanStatusText" style="color: #38bdf8; font-weight: bold;">📷 カードをかざすか下から選択</span>
+    </div>
+  </div>
 
-    <!-- ヘッダー＆同期状態 -->
-    <div class="glass-card">
-      <div class="top-bar">
-        <div class="app-badge">🥽 AR サウンドカード</div>
-        <span class="always-on-pill">🔊 音声常時ON</span>
-      </div>
+  <!-- 正面固定 動画再生シアター枠 -->
+  <div id="videoTheaterOverlay">
+    <div class="theater-header">
+      <span id="theaterQueueBadge" style="color: #38bdf8; font-weight: bold;">▶ 再生中</span>
+      <button type="button" id="closeTheaterBtn" style="background:#ef4444; color:#fff; border:none; border-radius:7px; padding:4px 9px; font-size:0.74rem; font-weight:bold; cursor:pointer;">✕ 閉じる</button>
+    </div>
+    <video id="mainVideoPlayer" playsinline controls></video>
+    <div id="theaterVideoTitle" style="font-size: 0.9rem; font-weight: bold; color: #f8fafc; text-align: center;"></div>
+  </div>
 
-      <div class="sync-row">
-        <span id="syncStatusLabel">☁️ 同期待機中...</span>
-        <div style="display:flex; align-items:center; gap:4px;">
-          <input type="text" id="roomIdInput" class="text-input" style="width: 135px; padding: 4px 8px; font-size: 0.75rem;" placeholder="12文字以上のID" />
-          <button type="button" id="connectRoomBtn" class="mini-btn" style="padding: 4px 8px; font-size: 0.74rem;">接続</button>
-        </div>
-      </div>
+  <!-- A-Frame + MindAR カメラシーン（カード認識エンジン） -->
+  <div id="arSceneWrapper">
+    <a-scene
+      id="mindArScene"
+      mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: no; uiError: no; uiScanning: no;"
+      color-space="sRGB"
+      renderer="colorManagement: true, physicallyCorrectLights"
+      vr-mode-ui="enabled: false"
+      device-orientation-permission-ui="enabled: false"
+    >
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+      <a-entity id="targetSlot0" mindar-image-target="targetIndex: 0"></a-entity>
+      <a-entity id="targetSlot1" mindar-image-target="targetIndex: 1"></a-entity>
+      <a-entity id="targetSlot2" mindar-image-target="targetIndex: 2"></a-entity>
+      <a-entity id="targetSlot3" mindar-image-target="targetIndex: 3"></a-entity>
+      <a-entity id="targetSlot4" mindar-image-target="targetIndex: 4"></a-entity>
+      <a-entity id="targetSlot5" mindar-image-target="targetIndex: 5"></a-entity>
+      <a-entity id="targetSlot6" mindar-image-target="targetIndex: 6"></a-entity>
+      <a-entity id="targetSlot7" mindar-image-target="targetIndex: 7"></a-entity>
+      <a-entity id="targetSlot8" mindar-image-target="targetIndex: 8"></a-entity>
+      <a-entity id="targetSlot9" mindar-image-target="targetIndex: 9"></a-entity>
+    </a-scene>
+  </div>
+
+  <!-- 下部操作パネル（お気に入り・選択カード連続再生） -->
+  <div class="bottom-panel" id="bottomPanel">
+    <div class="panel-handle-row" id="panelToggleHeader">
+      <span style="font-size: 0.9rem; font-weight: bold; color: #38bdf8;">🎬 動画カード一覧・連続再生</span>
+      <span id="panelToggleHint" style="font-size: 0.74rem; color: #94a3b8;">▼ 折りたたむ</span>
     </div>
 
-    <!-- 正面固定ARカードステージ（角度調整なし） -->
-    <div class="ar-stage-card" id="arStageCard">
-      <div class="ar-now-label" id="arModeLabel">AR CARD READY（正面固定）</div>
-      <div class="ar-now-title" id="arCurrentTitle">再生するカードを選んでください</div>
-      <div class="ar-queue-info" id="arQueueStatus">お気に入り: 0曲 / 選択中: 0曲</div>
+    <div class="control-btn-grid">
+      <button type="button" class="btn btn-fav-seq" id="playFavSeqBtn">★ お気に入り連続再生</button>
+      <button type="button" class="btn btn-sel-seq" id="playSelSeqBtn">▶ 選択カードを連続再生</button>
+      <button type="button" class="btn btn-next" id="nextVideoBtn">⏭ 次の動画へ</button>
+      <button type="button" class="btn btn-stop" id="stopVideoBtn">⏹ 再生停止</button>
     </div>
 
-    <!-- 連続再生コントロール -->
-    <div class="glass-card">
-      <div class="control-grid">
-        <button type="button" class="action-btn btn-fav-play" id="playFavoritesSeqBtn">★ お気に入り連続再生</button>
-        <button type="button" class="action-btn btn-sel-play" id="playSelectedSeqBtn">▶ 選択カード連続再生</button>
-        <button type="button" class="action-btn btn-next" id="nextTrackBtn">⏭ 次のカードへ</button>
-        <button type="button" class="action-btn btn-stop" id="stopPlaybackBtn">⏹ 再生停止</button>
-      </div>
+    <div class="filter-row">
+      <button type="button" class="filter-tab active" data-filter="all">すべて (<span id="cntAll">0</span>)</button>
+      <button type="button" class="filter-tab" data-filter="fav">★ お気に入り (<span id="cntFav">0</span>)</button>
+      <button type="button" class="filter-tab" data-filter="selected">☑ 選択中 (<span id="cntSel">0</span>)</button>
     </div>
 
-    <!-- カード選択・お気に入り管理リスト -->
-    <div class="glass-card">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <span style="font-size: 0.9rem; font-weight: bold; color: #38bdf8;">📋 サウンドカード一覧</span>
-        <button type="button" id="clearSelectionBtn" class="mini-btn" style="background:#1e293b; color:#cbd5e1; border:1px solid #475569; padding:4px 8px; font-size:0.72rem;">選択全解除</button>
-      </div>
+    <div class="card-scroll-area" id="cardListContainer"></div>
 
-      <div class="filter-tabs">
-        <button type="button" class="tab-btn active" data-filter="all">すべて (<span id="countAllSpan">0</span>)</button>
-        <button type="button" class="tab-btn" data-filter="fav">★ お気に入り (<span id="countFavSpan">0</span>)</button>
-        <button type="button" class="tab-btn" data-filter="selected">☑ 選択中 (<span id="countSelSpan">0</span>)</button>
-      </div>
-
-      <div class="card-list" id="arCardListContainer"></div>
-
-      <!-- クイック曲追加 -->
-      <div style="padding-top: 8px; border-top: 1px dashed #334155; display: flex; flex-direction: column; gap: 6px;">
-        <div style="font-size: 0.76rem; color: #94a3b8;">＋ 新しいカード（音声ファイル・URL）を追加</div>
-        <div class="compact-row">
-          <input type="text" id="addCardTitleInput" class="text-input" placeholder="カード名" />
-          <input type="text" id="addCardUrlInput" class="text-input" placeholder="./sound.mp3 や URL" />
-          <button type="button" id="addCardBtn" class="mini-btn">追加</button>
-        </div>
-      </div>
+    <!-- 新規動画カード追加 & 選択解除 -->
+    <div class="add-row">
+      <input type="text" id="newCardTitle" class="mini-input" placeholder="カード名" />
+      <input type="text" id="newCardVideoUrl" class="mini-input" placeholder="./video1.mp4 や URL" />
+      <button type="button" id="addVideoCardBtn" class="mini-add-btn">＋追加</button>
+      <button type="button" id="clearSelBtn" class="mini-add-btn" style="background:#334155; color:#cbd5e1;">選択解除</button>
     </div>
-
   </div>
 
   <script>
-    // =========================================================
-    // Firebase設定
-    // =========================================================
-    const FIREBASE_CONFIG = {
-      apiKey: "AIzaSyBXIOyPImlqiPAX-4JbZ_LNZrzT9_SIazc",
-      authDomain: "sotugyouken-2ec79.firebaseapp.com",
-      databaseURL: "https://sotugyouken-2ec79-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "sotugyouken-2ec79",
-      storageBucket: "sotugyouken-2ec79.firebasestorage.app",
-      messagingSenderId: "682579514497",
-      appId: "1:682579514497:web:f4f3cb5b33637d7dade980",
-      measurementId: "G-6SXYHSS0H8"
-    };
-
-    const DEFAULT_SONGS = [
+    const DEFAULT_VIDEO_CARDS = [
       {
-        title: "サンプル音 1（ファンファーレ）",
-        url: "https://actions.google.com/sounds/v1/alarms/bugle_tune.ogg",
-        baseVolume: 80,
-        peakVolume: 100,
-        duration: 15,
+        targetIndex: 0,
+        title: "カード1：サンプル動画",
+        videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
         favorite: true
       },
       {
-        title: "サンプル音 2（効果音）",
-        url: "https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg",
-        baseVolume: 90,
-        peakVolume: 100,
-        duration: 5,
+        targetIndex: 1,
+        title: "カード2：サンプル動画",
+        videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
         favorite: false
       }
     ];
 
-    // DOM要素
-    const arCameraBg = document.getElementById("arCameraBg");
-    const arStartOverlay = document.getElementById("arStartOverlay");
-    const arStartBtn = document.getElementById("arStartBtn");
+    // DOM参照
+    const startOverlay = document.getElementById("startOverlay");
+    const startArBtn = document.getElementById("startArBtn");
+    const mindArScene = document.getElementById("mindArScene");
+    const scanStatusText = document.getElementById("scanStatusText");
 
-    const syncStatusLabel = document.getElementById("syncStatusLabel");
-    const roomIdInput = document.getElementById("roomIdInput");
-    const connectRoomBtn = document.getElementById("connectRoomBtn");
+    const videoTheaterOverlay = document.getElementById("videoTheaterOverlay");
+    const mainVideoPlayer = document.getElementById("mainVideoPlayer");
+    const theaterQueueBadge = document.getElementById("theaterQueueBadge");
+    const theaterVideoTitle = document.getElementById("theaterVideoTitle");
+    const closeTheaterBtn = document.getElementById("closeTheaterBtn");
 
-    const arStageCard = document.getElementById("arStageCard");
-    const arModeLabel = document.getElementById("arModeLabel");
-    const arCurrentTitle = document.getElementById("arCurrentTitle");
-    const arQueueStatus = document.getElementById("arQueueStatus");
+    const bottomPanel = document.getElementById("bottomPanel");
+    const panelToggleHeader = document.getElementById("panelToggleHeader");
+    const panelToggleHint = document.getElementById("panelToggleHint");
 
-    const playFavoritesSeqBtn = document.getElementById("playFavoritesSeqBtn");
-    const playSelectedSeqBtn = document.getElementById("playSelectedSeqBtn");
-    const nextTrackBtn = document.getElementById("nextTrackBtn");
-    const stopPlaybackBtn = document.getElementById("stopPlaybackBtn");
-    const clearSelectionBtn = document.getElementById("clearSelectionBtn");
+    const playFavSeqBtn = document.getElementById("playFavSeqBtn");
+    const playSelSeqBtn = document.getElementById("playSelSeqBtn");
+    const nextVideoBtn = document.getElementById("nextVideoBtn");
+    const stopVideoBtn = document.getElementById("stopVideoBtn");
+    const clearSelBtn = document.getElementById("clearSelBtn");
 
-    const filterTabBtns = document.querySelectorAll(".tab-btn");
-    const countAllSpan = document.getElementById("countAllSpan");
-    const countFavSpan = document.getElementById("countFavSpan");
-    const countSelSpan = document.getElementById("countSelSpan");
-    const arCardListContainer = document.getElementById("arCardListContainer");
+    const filterTabs = document.querySelectorAll(".filter-tab");
+    const cntAll = document.getElementById("cntAll");
+    const cntFav = document.getElementById("cntFav");
+    const cntSel = document.getElementById("cntSel");
+    const cardListContainer = document.getElementById("cardListContainer");
 
-    const addCardTitleInput = document.getElementById("addCardTitleInput");
-    const addCardUrlInput = document.getElementById("addCardUrlInput");
-    const addCardBtn = document.getElementById("addCardBtn");
+    const newCardTitle = document.getElementById("newCardTitle");
+    const newCardVideoUrl = document.getElementById("newCardVideoUrl");
+    const addVideoCardBtn = document.getElementById("addVideoCardBtn");
 
-    // 状態管理
-    let firestoreDb = null;
-    let unsubscribeFirestore = null;
-    let isApplyingRemote = false;
-    let syncTimer = null;
-    const CLIENT_ID = `ar_${Math.random().toString(36).slice(2, 10)}`;
+    // 状態変数
+    let videoCards = [];
+    let selectedSet = new Set();
+    let activeFilter = "all";
 
-    let syncGroupId = localStorage.getItem("person_sound_sync_group_v1") || "default_room";
-    roomIdInput.value = syncGroupId;
-
-    let songList = [];
-    let selectedIndices = new Set();
-    let currentFilter = "all";
-
-    // 連続再生キュー管理
+    // 連続再生キュー
     let playQueue = [];
-    let queueCursor = -1;
-    let queueModeName = "";
-    let currentPlayingSongIdx = -1;
-    let durationStopTimer = null;
+    let queuePos = -1;
+    let queueLabel = "";
+    let currentPlayingIdx = -1;
 
-    // 音声プレーヤー（常にミュート解除・音声ON固定）
-    const audioPlayer = new Audio();
-    audioPlayer.preload = "auto";
-    audioPlayer.muted = false;
-
-    function normalizeAudioPath(rawInput) {
-      const trimmed = (rawInput || "").trim();
-      if (!trimmed) return "";
-      if (/^https?:\/\//i.test(trimmed)) {
+    function normalizeMediaUrl(raw) {
+      const s = (raw || "").trim();
+      if (!s) return "";
+      if (/^https?:\/\//i.test(s)) {
         try {
-          const u = new URL(trimmed);
+          const u = new URL(s);
           if (u.hostname.includes("dropbox.com")) {
             u.searchParams.delete("dl");
             u.searchParams.set("raw", "1");
             return u.toString();
           }
         } catch (e) {}
-        return trimmed;
+        return s;
       }
-      if (/^(\.\/|\.\.\/|\/)/i.test(trimmed)) return trimmed;
-      return `./${trimmed}`;
+      if (/^(\.\/|\.\.\/|\/)/i.test(s)) return s;
+      return `./${s}`;
     }
 
-    function resolveSafeAudioUrl(rawPath) {
-      const normalized = normalizeAudioPath(rawPath);
-      if (/^https?:\/\//i.test(normalized)) return normalized;
-      const fullUrl = new URL(normalized, window.location.href).href;
-      return encodeURI(decodeURI(fullUrl));
+    function resolvePlayableUrl(raw) {
+      const norm = normalizeMediaUrl(raw);
+      if (/^https?:\/\//i.test(norm)) return norm;
+      const full = new URL(norm, window.location.href).href;
+      return encodeURI(decodeURI(full));
     }
 
-    function normalizeSong(s) {
-      return {
-        ...s,
-        title: s.title || "無題のカード",
-        url: normalizeAudioPath(s.url || ""),
-        baseVolume: typeof s.baseVolume === "number" ? s.baseVolume : 85,
-        peakVolume: typeof s.peakVolume === "number" ? s.peakVolume : 100,
-        duration: typeof s.duration === "number" ? s.duration : 0,
-        favorite: Boolean(s.favorite)
-      };
+    function loadCardsFromLocal() {
+      const saved = JSON.parse(localStorage.getItem("ar_video_cards_v1") || "null");
+      videoCards = Array.isArray(saved) && saved.length > 0
+        ? saved
+        : DEFAULT_VIDEO_CARDS.map(c => ({ ...c }));
     }
 
-    function loadLocalSongs() {
-      const raw = JSON.parse(localStorage.getItem("person_sound_songs_v6") || "null");
-      songList = Array.isArray(raw) && raw.length > 0
-        ? raw.map(normalizeSong)
-        : DEFAULT_SONGS.map(normalizeSong);
+    function saveCards() {
+      localStorage.setItem("ar_video_cards_v1", JSON.stringify(videoCards));
+      renderCardList();
     }
-
-    function saveAndSyncSongs() {
-      localStorage.setItem("person_sound_songs_v6", JSON.stringify(songList));
-      renderCards();
-
-      if (!firestoreDb || isApplyingRemote) return;
-      if (syncTimer) clearTimeout(syncTimer);
-
-      syncStatusLabel.textContent = "☁️ クラウド同期中...";
-      syncStatusLabel.style.color = "#f59e0b";
-
-      syncTimer = setTimeout(async () => {
-        try {
-          await firestoreDb.collection("entry_exit_shared_rooms").doc(syncGroupId).set({
-            updatedAt: Date.now(),
-            updatedBy: CLIENT_ID,
-            songList
-          }, { merge: true });
-          syncStatusLabel.textContent = `✅ 同期済み (${syncGroupId})`;
-          syncStatusLabel.style.color = "#10b981";
-        } catch (e) {
-          syncStatusLabel.textContent = "⚠️ 同期エラー（12文字以上のIDを確認）";
-          syncStatusLabel.style.color = "#ef4444";
-        }
-      }, 400);
-    }
-
-    function connectFirestore(groupId) {
-      try {
-        if (!firebase.apps.length) {
-          firebase.initializeApp(FIREBASE_CONFIG);
-        }
-        firestoreDb = firebase.firestore();
-
-        if (unsubscribeFirestore) {
-          unsubscribeFirestore();
-          unsubscribeFirestore = null;
-        }
-
-        syncStatusLabel.textContent = `☁️ 接続中 (${groupId})...`;
-        syncStatusLabel.style.color = "#38bdf8";
-
-        unsubscribeFirestore = firestoreDb.collection("entry_exit_shared_rooms").doc(groupId)
-          .onSnapshot((snap) => {
-            if (snap.exists) {
-              const data = snap.data();
-              if (data.updatedBy !== CLIENT_ID && Array.isArray(data.songList)) {
-                isApplyingRemote = true;
-                songList = data.songList.map(normalizeSong);
-                localStorage.setItem("person_sound_songs_v6", JSON.stringify(songList));
-                renderCards();
-                isApplyingRemote = false;
-              }
-              syncStatusLabel.textContent = `✅ 同期中 (${groupId})`;
-              syncStatusLabel.style.color = "#10b981";
-            } else {
-              saveAndSyncSongs();
-            }
-          }, () => {
-            syncStatusLabel.textContent = "⚠️ 同期エラー（12文字以上のIDを指定）";
-            syncStatusLabel.style.color = "#ef4444";
-          });
-      } catch (e) {
-        syncStatusLabel.textContent = "📱 ローカル動作中";
-      }
-    }
-
-    connectRoomBtn.addEventListener("click", () => {
-      const nextId = roomIdInput.value.trim().replace(/[^a-zA-Z0-9_-]/g, "") || "default_room";
-      roomIdInput.value = nextId;
-      syncGroupId = nextId;
-      localStorage.setItem("person_sound_sync_group_v1", syncGroupId);
-      connectFirestore(syncGroupId);
-    });
 
     // =========================================================
-    // 再生・連続再生ロジック（音声は常にON）
+    // 動画再生・連続再生エンジン
     // =========================================================
-    function clearPlaybackTimers() {
-      if (durationStopTimer) {
-        clearTimeout(durationStopTimer);
-        durationStopTimer = null;
-      }
-    }
+    function stopVideoPlayback() {
+      mainVideoPlayer.pause();
+      mainVideoPlayer.removeAttribute("src");
+      mainVideoPlayer.load();
+      videoTheaterOverlay.classList.remove("active");
 
-    function stopAllPlayback() {
-      clearPlaybackTimers();
-      audioPlayer.pause();
-      audioPlayer.currentTime = 0;
       playQueue = [];
-      queueCursor = -1;
-      queueModeName = "";
-      currentPlayingSongIdx = -1;
-
-      arStageCard.classList.remove("playing");
-      arModeLabel.textContent = "AR CARD READY（正面固定）";
-      arCurrentTitle.textContent = "再生停止中";
-      renderCards();
+      queuePos = -1;
+      queueLabel = "";
+      currentPlayingIdx = -1;
+      scanStatusText.textContent = "📷 カードをかざすか下から選択";
+      renderCardList();
     }
 
-    function playSongAtIndex(songIdx, isFromQueue = false) {
-      const song = songList[songIdx];
-      if (!song) {
-        stopAllPlayback();
+    function playVideoCard(idx, fromQueue = false) {
+      const card = videoCards[idx];
+      if (!card) {
+        stopVideoPlayback();
         return;
       }
 
-      clearPlaybackTimers();
-      currentPlayingSongIdx = songIdx;
+      currentPlayingIdx = idx;
+      videoTheaterOverlay.classList.add("active");
 
-      // 常にミュート解除・音声ON（最小音量0でも聞こえるよう下限を保護）
-      audioPlayer.muted = false;
-      const volRatio = Math.max(0.15, Math.min(1.0, (song.peakVolume || song.baseVolume || 85) / 100));
-      audioPlayer.volume = volRatio;
-      audioPlayer.src = resolveSafeAudioUrl(song.url);
+      // 動画の音声を有効化（※完全無音で流したい場合はここを mainVideoPlayer.muted = true; に変更）
+      mainVideoPlayer.muted = false;
+      mainVideoPlayer.src = resolvePlayableUrl(card.videoUrl);
 
-      audioPlayer.play().then(() => {
-        arStageCard.classList.add("playing");
-        if (isFromQueue && playQueue.length > 0) {
-          arModeLabel.textContent = `${queueModeName}（${queueCursor + 1} / ${playQueue.length}枚目）`;
-        } else {
-          arModeLabel.textContent = "▶ 単体カード再生中（音声ON）";
+      if (fromQueue && playQueue.length > 0) {
+        theaterQueueBadge.textContent = `${queueLabel}（${queuePos + 1} / ${playQueue.length}本目）`;
+      } else {
+        theaterQueueBadge.textContent = `▶ カード ${idx + 1} 再生中`;
+      }
+      theaterVideoTitle.textContent = `${card.favorite ? "★ " : ""}${card.title}`;
+      scanStatusText.textContent = `🎬 再生中: ${card.title}`;
+
+      mainVideoPlayer.play().catch(() => {
+        theaterVideoTitle.textContent = `❌ 動画の読み込みに失敗: ${card.videoUrl}`;
+      });
+
+      renderCardList();
+    }
+
+    mainVideoPlayer.addEventListener("ended", () => {
+      if (playQueue.length > 0 && queuePos + 1 < playQueue.length) {
+        queuePos++;
+        playVideoCard(playQueue[queuePos], true);
+      } else {
+        const finishedName = queueLabel;
+        stopVideoPlayback();
+        if (finishedName) {
+          scanStatusText.textContent = `✅ ${finishedName} が完了しました`;
         }
-        arCurrentTitle.textContent = `${song.favorite ? "★ " : ""}${song.title}`;
-        renderCards();
+      }
+    });
 
-        if (song.duration > 0) {
-          durationStopTimer = setTimeout(() => {
-            handleTrackFinished();
-          }, song.duration * 1000);
-        }
-      }).catch(() => {
-        arCurrentTitle.textContent = `❌ 再生失敗: ${song.title}`;
-        if (isFromQueue) {
-          setTimeout(() => handleTrackFinished(), 800);
+    function startQueuePlayback(indices, label) {
+      if (!indices || indices.length === 0) {
+        scanStatusText.textContent = label.includes("お気に入り")
+          ? "⚠️ 先に「☆」を押してお気に入り登録してください"
+          : "⚠️ 先にカードをタップして選択（☑）してください";
+        return;
+      }
+      playQueue = [...indices];
+      queuePos = 0;
+      queueLabel = label;
+      playVideoCard(playQueue[0], true);
+    }
+
+    playFavSeqBtn.addEventListener("click", () => {
+      const favIndices = videoCards
+        .map((c, idx) => (c.favorite ? idx : -1))
+        .filter(idx => idx !== -1);
+      startQueuePlayback(favIndices, "★ お気に入り連続再生");
+    });
+
+    playSelSeqBtn.addEventListener("click", () => {
+      const selIndices = Array.from(selectedSet)
+        .filter(idx => idx >= 0 && idx < videoCards.length)
+        .sort((a, b) => a - b);
+      startQueuePlayback(selIndices, "▶ 選択カード連続再生");
+    });
+
+    nextVideoBtn.addEventListener("click", () => {
+      if (playQueue.length > 0 && queuePos + 1 < playQueue.length) {
+        queuePos++;
+        playVideoCard(playQueue[queuePos], true);
+      } else if (videoCards.length > 0) {
+        const nextIdx = (currentPlayingIdx + 1) % videoCards.length;
+        playQueue = [];
+        queuePos = -1;
+        playVideoCard(nextIdx, false);
+      }
+    });
+
+    stopVideoBtn.addEventListener("click", stopVideoPlayback);
+    closeTheaterBtn.addEventListener("click", stopVideoPlayback);
+
+    clearSelBtn.addEventListener("click", () => {
+      selectedSet.clear();
+      renderCardList();
+    });
+
+    // =========================================================
+    // カメラでのARカード読み取りイベント（targetIndex 0〜9）
+    // =========================================================
+    for (let i = 0; i < 10; i++) {
+      const slotEl = document.getElementById(`targetSlot${i}`);
+      if (!slotEl) continue;
+
+      slotEl.addEventListener("targetFound", () => {
+        const cardIdx = videoCards.findIndex(c => Number(c.targetIndex) === i);
+        const targetIdx = cardIdx !== -1 ? cardIdx : i;
+        if (videoCards[targetIdx] && currentPlayingIdx !== targetIdx) {
+          playQueue = [];
+          queuePos = -1;
+          playVideoCard(targetIdx, false);
         }
       });
     }
 
-    function handleTrackFinished() {
-      clearPlaybackTimers();
-      if (playQueue.length > 0 && queueCursor + 1 < playQueue.length) {
-        queueCursor++;
-        playSongAtIndex(playQueue[queueCursor], true);
-      } else {
-        const finishedMode = queueModeName;
-        stopAllPlayback();
-        if (finishedMode) {
-          arCurrentTitle.textContent = `✅ ${finishedMode} 完了`;
-        }
-      }
-    }
-
-    audioPlayer.addEventListener("ended", handleTrackFinished);
-
-    function startSequentialPlayback(indicesArray, modeTitle) {
-      if (!indicesArray || indicesArray.length === 0) {
-        arModeLabel.textContent = "⚠️ 再生対象がありません";
-        arCurrentTitle.textContent = modeTitle.includes("お気に入り")
-          ? "先にカードの「☆」を押してお気に入り登録してください"
-          : "先にカードをタップしてチェックを入れてください";
-        return;
-      }
-      playQueue = [...indicesArray];
-      queueCursor = 0;
-      queueModeName = modeTitle;
-      playSongAtIndex(playQueue[0], true);
-    }
-
-    playFavoritesSeqBtn.addEventListener("click", () => {
-      const favIndices = songList
-        .map((s, idx) => (s.favorite ? idx : -1))
-        .filter(idx => idx !== -1);
-      startSequentialPlayback(favIndices, "★ お気に入り連続再生");
-    });
-
-    playSelectedSeqBtn.addEventListener("click", () => {
-      const selIndices = Array.from(selectedIndices)
-        .filter(idx => idx >= 0 && idx < songList.length)
-        .sort((a, b) => a - b);
-      startSequentialPlayback(selIndices, "▶ 選択カード連続再生");
-    });
-
-    nextTrackBtn.addEventListener("click", () => {
-      if (playQueue.length > 0 && queueCursor + 1 < playQueue.length) {
-        queueCursor++;
-        playSongAtIndex(playQueue[queueCursor], true);
-      } else if (songList.length > 0) {
-        const nextIdx = (currentPlayingSongIdx + 1) % songList.length;
-        playQueue = [];
-        queueCursor = -1;
-        playSongAtIndex(nextIdx, false);
-      }
-    });
-
-    stopPlaybackBtn.addEventListener("click", stopAllPlayback);
-
-    clearSelectionBtn.addEventListener("click", () => {
-      selectedIndices.clear();
-      renderCards();
-    });
-
     // =========================================================
-    // カード一覧描画＆お気に入り・選択操作
+    // カード一覧描画（お気に入り切替・複数選択・個別再生）
     // =========================================================
     function escapeHtml(str) {
       return String(str).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
     }
 
-    function updateCounters() {
-      const favCount = songList.filter(s => s.favorite).length;
-      // 範囲外の選択インデックスを掃除
-      selectedIndices.forEach(idx => {
-        if (idx < 0 || idx >= songList.length) selectedIndices.delete(idx);
+    function renderCardList() {
+      selectedSet.forEach(idx => {
+        if (idx < 0 || idx >= videoCards.length) selectedSet.delete(idx);
       });
-      const selCount = selectedIndices.size;
 
-      countAllSpan.textContent = songList.length;
-      countFavSpan.textContent = favCount;
-      countSelSpan.textContent = selCount;
-      arQueueStatus.textContent = `★ お気に入り: ${favCount}枚 / ☑ 選択中: ${selCount}枚`;
-    }
+      const favCount = videoCards.filter(c => c.favorite).length;
+      cntAll.textContent = videoCards.length;
+      cntFav.textContent = favCount;
+      cntSel.textContent = selectedSet.size;
 
-    function renderCards() {
-      updateCounters();
-      arCardListContainer.innerHTML = "";
+      cardListContainer.innerHTML = "";
 
-      const entries = songList
-        .map((song, idx) => ({ song, idx }))
-        .filter(({ song, idx }) => {
-          if (currentFilter === "fav") return song.favorite;
-          if (currentFilter === "selected") return selectedIndices.has(idx);
+      const filtered = videoCards
+        .map((card, idx) => ({ card, idx }))
+        .filter(({ card, idx }) => {
+          if (activeFilter === "fav") return card.favorite;
+          if (activeFilter === "selected") return selectedSet.has(idx);
           return true;
         });
 
-      if (entries.length === 0) {
-        arCardListContainer.innerHTML = `<div style="text-align:center; color:#64748b; font-size:0.82rem; padding:14px;">該当するカードがありません</div>`;
+      if (filtered.length === 0) {
+        cardListContainer.innerHTML = `<div style="text-align:center; color:#64748b; font-size:0.8rem; padding:12px;">該当する動画カードがありません</div>`;
         return;
       }
 
-      entries.forEach(({ song, idx }) => {
-        const isSelected = selectedIndices.has(idx);
-        const isPlaying = currentPlayingSongIdx === idx;
+      filtered.forEach(({ card, idx }) => {
+        const isSel = selectedSet.has(idx);
+        const isPlay = currentPlayingIdx === idx;
 
-        const card = document.createElement("div");
-        card.className = "ar-sound-card"
-          + (isSelected ? " selected-card" : "")
-          + (isPlaying ? " now-playing-card" : "");
+        const row = document.createElement("div");
+        row.className = "video-card-item"
+          + (isSel ? " is-selected" : "")
+          + (isPlay ? " is-playing" : "");
 
-        const leftArea = document.createElement("div");
-        leftArea.className = "card-left";
-        leftArea.innerHTML = `
-          <div class="select-check">${isSelected ? "✓" : ""}</div>
-          <div style="overflow: hidden;">
-            <div class="card-title">${idx + 1}. ${escapeHtml(song.title)}</div>
-            <div class="card-sub">${song.duration > 0 ? `⏱️ ${song.duration}秒` : "⏱️ 最後まで"} ・ ${isSelected ? "連続再生に選択済" : "タップで選択"}</div>
+        const left = document.createElement("div");
+        left.className = "card-select-area";
+        left.innerHTML = `
+          <div class="check-box">${isSel ? "✓" : ""}</div>
+          <div style="overflow:hidden;">
+            <div class="card-title-text">${idx + 1}. ${escapeHtml(card.title)}</div>
+            <div class="card-meta-text">マーカー #${card.targetIndex ?? idx} ・ ${isSel ? "連続再生に選択中" : "タップで選択"}</div>
           </div>
         `;
-        leftArea.addEventListener("click", () => {
-          if (selectedIndices.has(idx)) {
-            selectedIndices.delete(idx);
+        left.addEventListener("click", () => {
+          if (selectedSet.has(idx)) {
+            selectedSet.delete(idx);
           } else {
-            selectedIndices.add(idx);
+            selectedSet.add(idx);
           }
-          renderCards();
+          renderCardList();
         });
 
-        const rightActions = document.createElement("div");
-        rightActions.className = "card-actions";
+        const right = document.createElement("div");
+        right.className = "card-right-btns";
 
-        const favBtn = document.createElement("button");
-        favBtn.type = "button";
-        favBtn.className = "fav-star-btn" + (song.favorite ? " is-fav" : "");
-        favBtn.textContent = song.favorite ? "★" : "☆";
-        favBtn.title = "お気に入り切替";
-        favBtn.addEventListener("click", (e) => {
+        const starBtn = document.createElement("button");
+        starBtn.type = "button";
+        starBtn.className = "star-btn" + (card.favorite ? " active" : "");
+        starBtn.textContent = card.favorite ? "★" : "☆";
+        starBtn.addEventListener("click", (e) => {
           e.stopPropagation();
-          songList[idx].favorite = !songList[idx].favorite;
-          saveAndSyncSongs();
+          videoCards[idx].favorite = !videoCards[idx].favorite;
+          saveCards();
         });
 
         const playBtn = document.createElement("button");
         playBtn.type = "button";
-        playBtn.className = "single-play-btn";
-        playBtn.textContent = isPlaying ? "🔊 再生中" : "▶ 再生";
+        playBtn.className = "play-one-btn";
+        playBtn.textContent = isPlay ? "🎬 再生中" : "▶ 再生";
         playBtn.addEventListener("click", (e) => {
           e.stopPropagation();
           playQueue = [];
-          queueCursor = -1;
-          playSongAtIndex(idx, false);
+          queuePos = -1;
+          playVideoCard(idx, false);
         });
 
-        rightActions.appendChild(favBtn);
-        rightActions.appendChild(playBtn);
-
-        card.appendChild(leftArea);
-        card.appendChild(rightActions);
-        arCardListContainer.appendChild(card);
+        right.appendChild(starBtn);
+        right.appendChild(playBtn);
+        row.appendChild(left);
+        row.appendChild(right);
+        cardListContainer.appendChild(row);
       });
     }
 
-    filterTabBtns.forEach(btn => {
-      btn.addEventListener("click", () => {
-        filterTabBtns.forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
-        currentFilter = btn.dataset.filter;
-        renderCards();
+    filterTabs.forEach(tab => {
+      tab.addEventListener("click", () => {
+        filterTabs.forEach(t => t.classList.remove("active"));
+        tab.classList.add("active");
+        activeFilter = tab.dataset.filter;
+        renderCardList();
       });
     });
 
-    addCardBtn.addEventListener("click", () => {
-      const normalizedUrl = normalizeAudioPath(addCardUrlInput.value);
-      if (!normalizedUrl) return;
-      let title = addCardTitleInput.value.trim();
-      if (!title) {
-        const clean = normalizedUrl.split("?")[0];
-        title = decodeURIComponent(clean.substring(clean.lastIndexOf("/") + 1)) || `カード ${songList.length + 1}`;
-      }
-      songList.push(normalizeSong({
+    addVideoCardBtn.addEventListener("click", () => {
+      const url = normalizeMediaUrl(newCardVideoUrl.value);
+      if (!url) return;
+      const title = newCardTitle.value.trim() || `カード${videoCards.length + 1}：動画`;
+      videoCards.push({
+        targetIndex: videoCards.length,
         title,
-        url: normalizedUrl,
-        baseVolume: 85,
-        peakVolume: 100,
-        duration: 0,
+        videoUrl: url,
         favorite: false
-      }));
-      addCardTitleInput.value = "";
-      addCardUrlInput.value = "";
-      saveAndSyncSongs();
+      });
+      newCardTitle.value = "";
+      newCardVideoUrl.value = "";
+      saveCards();
     });
 
-    // =========================================================
-    // ARカメラ起動（正面固定・角度調整なし）
-    // =========================================================
-    async function startArCamera() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" },
-          audio: false
-        });
-        arCameraBg.srcObject = stream;
-        await arCameraBg.play();
-      } catch (e) {
-        // カメラ未許可・PC環境でもARカードUIはそのまま利用可能
-      }
-    }
+    // 下部ドロワー開閉
+    panelToggleHeader.addEventListener("click", () => {
+      const collapsed = bottomPanel.classList.toggle("collapsed");
+      panelToggleHint.textContent = collapsed ? "▲ 開く" : "▼ 折りたたむ";
+    });
 
-    arStartBtn.addEventListener("click", async () => {
-      audioPlayer.muted = false;
-      audioPlayer.play().then(() => audioPlayer.pause()).catch(() => {});
-      arStartOverlay.style.display = "none";
-      await startArCamera();
+    // ARカメラ起動＆ブラウザの自動再生ロック解除
+    startArBtn.addEventListener("click", async () => {
+      mainVideoPlayer.play().then(() => mainVideoPlayer.pause()).catch(() => {});
+      startOverlay.style.display = "none";
+
+      try {
+        const arSystem = mindArScene.systems["mindar-image-system"];
+        if (arSystem) {
+          await arSystem.start();
+        }
+      } catch (e) {
+        scanStatusText.textContent = "📋 リストからカードを選んで再生できます";
+      }
     });
 
     // 初期化
-    loadLocalSongs();
-    renderCards();
-    connectFirestore(syncGroupId);
+    loadCardsFromLocal();
+    renderCardList();
   </script>
 </body>
 </html>
