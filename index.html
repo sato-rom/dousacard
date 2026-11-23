@@ -3,414 +3,955 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>30枚カード対応 WebAR</title>
+  <title>AR サウンドカード＆連続再生システム</title>
 
-  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+  <!-- Firebase App & Firestore SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 
   <style>
-    body {
+    * {
+      box-sizing: border-box;
       margin: 0;
-      overflow: hidden;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: transparent;
+      padding: 0;
     }
 
-    #startOverlay {
+    body {
+      background: #020617;
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100dvh;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 背景カメラ映像（AR空間ベース・正面固定） */
+    #arCameraBg {
       position: fixed;
       inset: 0;
-      background: rgba(11, 15, 25, 0.94);
-      color: #f8fafc;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: 0;
+      background: #090d16;
+    }
+
+    /* AR空間上の固定オーバーレイレイヤー */
+    .ar-hud-layer {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      max-width: 520px;
+      margin: 0 auto;
+      padding: 14px 14px 48px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 100dvh;
+    }
+
+    /* 起動オーバーレイ（音声ロック解除＆カメラ起動） */
+    #arStartOverlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 6, 23, 0.94);
+      z-index: 9999;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      z-index: 9999;
       padding: 24px;
       text-align: center;
+      gap: 16px;
     }
 
-    #startBtn {
-      margin-top: 24px;
-      padding: 18px 40px;
-      font-size: 1.3rem;
+    #arStartBtn {
+      padding: 18px 36px;
+      font-size: 1.15rem;
       font-weight: bold;
-      color: white;
+      color: #fff;
       background: linear-gradient(135deg, #06b6d4, #3b82f6);
       border: none;
       border-radius: 50px;
-      box-shadow: 0 10px 25px rgba(59, 130, 246, 0.5);
+      box-shadow: 0 10px 25px rgba(59, 130, 246, 0.45);
       cursor: pointer;
     }
 
-    #statusBadge {
-      position: fixed;
-      top: 16px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(15, 23, 42, 0.85);
-      color: #38bdf8;
-      padding: 8px 18px;
-      border-radius: 20px;
-      font-size: 0.95rem;
-      font-weight: bold;
-      z-index: 1000;
-      pointer-events: none;
-      border: 1px solid rgba(56, 189, 248, 0.3);
-      white-space: nowrap;
-    }
-
-    #fixedVideoContainer {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.75);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 900;
-      padding: 20px;
-    }
-
-    #controlPanel {
-      position: fixed;
-      bottom: 16px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 92%;
-      max-width: 420px;
-      background: rgba(15, 23, 42, 0.92);
-      border: 1px solid rgba(56, 189, 248, 0.4);
-      border-radius: 20px;
-      padding: 12px 14px;
-      z-index: 1000;
-      display: none;
+    /* 半透明グラスモーフィズムカード */
+    .glass-card {
+      background: rgba(15, 23, 42, 0.78);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 18px;
+      padding: 14px;
+      display: flex;
       flex-direction: column;
       gap: 10px;
-      color: #f8fafc;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
     }
 
-    .ctrl-row {
+    .top-bar {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 8px;
-      font-size: 0.85rem;
     }
 
-    .speed-group {
+    .app-badge {
+      font-size: 1.02rem;
+      font-weight: 800;
+      color: #38bdf8;
       display: flex;
+      align-items: center;
       gap: 6px;
-      flex: 1;
     }
 
-    .speed-btn {
-      flex: 1;
-      background: #1e293b;
-      color: #cbd5e1;
-      border: 1px solid #334155;
-      padding: 7px 4px;
-      border-radius: 8px;
-      font-size: 0.85rem;
+    .always-on-pill {
+      background: rgba(16, 185, 129, 0.22);
+      border: 1px solid rgba(16, 185, 129, 0.55);
+      color: #34d399;
+      font-size: 0.72rem;
       font-weight: bold;
-      cursor: pointer;
+      padding: 4px 10px;
+      border-radius: 99px;
     }
 
-    .speed-btn.active {
-      background: #38bdf8;
-      color: #0f172a;
-      border-color: #38bdf8;
-    }
-
-    .action-btn-row {
+    .sync-row {
       display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      font-size: 0.74rem;
+      color: #94a3b8;
+      background: rgba(2, 6, 23, 0.65);
+      padding: 6px 10px;
+      border-radius: 10px;
+      border: 1px solid #1e293b;
+    }
+
+    /* AR中央の固定ホログラムカード表示枠（角度調整なし・正面固定） */
+    .ar-stage-card {
+      background: linear-gradient(145deg, rgba(14, 116, 144, 0.32), rgba(15, 23, 42, 0.85));
+      border: 2px solid #38bdf8;
+      border-radius: 20px;
+      padding: 18px 16px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 0 24px rgba(56, 189, 248, 0.25);
+    }
+
+    .ar-stage-card.playing {
+      border-color: #10b981;
+      box-shadow: 0 0 28px rgba(16, 185, 129, 0.45);
+    }
+
+    .ar-now-label {
+      font-size: 0.75rem;
+      font-weight: bold;
+      color: #38bdf8;
+      letter-spacing: 0.05em;
+    }
+
+    .ar-now-title {
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: #ffffff;
+      word-break: break-word;
+    }
+
+    .ar-queue-info {
+      font-size: 0.78rem;
+      color: #cbd5e1;
+      background: rgba(2, 6, 23, 0.6);
+      padding: 4px 12px;
+      border-radius: 99px;
+    }
+
+    /* 連続再生コントロールボタン群 */
+    .control-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
       gap: 8px;
     }
 
     .action-btn {
-      flex: 1;
+      border: none;
+      border-radius: 12px;
+      padding: 12px 10px;
+      font-size: 0.84rem;
+      font-weight: bold;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      transition: transform 0.08s ease, opacity 0.15s ease;
+    }
+
+    .action-btn:active {
+      transform: scale(0.97);
+    }
+
+    .btn-fav-play {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: #0f172a;
+    }
+
+    .btn-sel-play {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: #ffffff;
+    }
+
+    .btn-next {
       background: #1e293b;
       color: #38bdf8;
       border: 1px solid #38bdf8;
-      padding: 10px 8px;
-      border-radius: 12px;
-      font-size: 0.9rem;
+    }
+
+    .btn-stop {
+      background: #ef4444;
+      color: #ffffff;
+    }
+
+    /* フィルタータブ（すべて / お気に入り / 選択中） */
+    .filter-tabs {
+      display: flex;
+      gap: 6px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 8px 6px;
+      border-radius: 10px;
+      border: 1px solid #334155;
+      background: rgba(15, 23, 42, 0.85);
+      color: #94a3b8;
+      font-size: 0.78rem;
       font-weight: bold;
       cursor: pointer;
     }
 
-    .action-btn.pinned {
-      background: #10b981;
-      color: #0f172a;
-      border-color: #10b981;
+    .tab-btn.active {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: #38bdf8;
+      color: #38bdf8;
     }
 
-    input[type="range"] {
+    /* ARカード一覧 */
+    .card-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .ar-sound-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: rgba(15, 23, 42, 0.88);
+      border: 1.5px solid #334155;
+      border-radius: 14px;
+      padding: 11px 12px;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .ar-sound-card.selected-card {
+      border-color: #38bdf8;
+      background: rgba(14, 116, 144, 0.24);
+    }
+
+    .ar-sound-card.now-playing-card {
+      border-color: #10b981;
+      background: rgba(16, 185, 129, 0.22);
+    }
+
+    .card-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
       flex: 1;
-      accent-color: #38bdf8;
+      overflow: hidden;
+      cursor: pointer;
+    }
+
+    .select-check {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      border: 2px solid #475569;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      font-weight: bold;
+      color: #0f172a;
+      background: #020617;
+      flex-shrink: 0;
+    }
+
+    .ar-sound-card.selected-card .select-check {
+      background: #38bdf8;
+      border-color: #38bdf8;
+    }
+
+    .card-title {
+      font-size: 0.92rem;
+      font-weight: bold;
+      color: #f8fafc;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .card-sub {
+      font-size: 0.72rem;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+
+    .card-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .fav-star-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      border: 1px solid #475569;
+      background: #0f172a;
+      color: #64748b;
+      font-size: 1.15rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .fav-star-btn.is-fav {
+      border-color: #f59e0b;
+      background: rgba(245, 158, 11, 0.18);
+      color: #fbbf24;
+    }
+
+    .single-play-btn {
+      padding: 8px 11px;
+      border-radius: 10px;
+      border: 1px solid #38bdf8;
+      background: #0f172a;
+      color: #38bdf8;
+      font-size: 0.76rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    /* 共有グループID＆曲追加フォーム */
+    .compact-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .text-input {
+      flex: 1;
+      background: #020617;
+      border: 1px solid #475569;
+      color: #f8fafc;
+      padding: 8px 10px;
+      border-radius: 10px;
+      font-size: 0.82rem;
+    }
+
+    .mini-btn {
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: none;
+      background: #38bdf8;
+      color: #0f172a;
+      font-size: 0.8rem;
+      font-weight: bold;
+      cursor: pointer;
+      white-space: nowrap;
     }
   </style>
-
-  <script>
-    const VIDEO_LIST = [
-      "./1_Aカメラ.mp4",  "./2_Aヒース.mp4",  "./3_Aフレーム.mp4",  "./4_A握手.mp4",  "./5_A横に動く.mp4",
-      "./6_A丸.mp4",  "./7_A指す.mp4",  "./8_A自分を指す.mp4",  "./9_A手をつなく.mp4",  "./10_A手を開く.mp4",
-      "./11_A手を叩く.mp4", "./12_A十字.mp4", "./13_A約束.mp4", "./14_A腕を横.mp4", "./15_A腕を上下左右.mp4",
-      "./16_BS→Z.mp4", "./17_Bスライト.mp4", "./18_B肩を前後.mp4", "./19_B手を回す.mp4", "./20_B前に進む.mp4",
-      "./21_B足と肘を合わせる.mp4", "./22_B打つ.mp4", "./23_B体を動かす.mp4", "./24_B波.mp4", "./25_B片腕を回す.mp4",
-      "./26_Cお尻を横に出す.mp4", "./27_C円を描いて移動.mp4", "./28_C花.mp4", "./29_C時計.mp4", "./30_C足の開閉.mp4"
-    ];
-
-    const BASE_SIZE = 1.0;
-    let currentAngleX = 35;
-    let currentLoadedSrc = "";
-    let currentPlaybackRate = 1.0;
-    let isPinned = false;
-
-    function applyTrueAspectRatio(videoEl) {
-      const vw = videoEl.videoWidth;
-      const vh = videoEl.videoHeight;
-      if (!vw || !vh) return;
-
-      let scaleX, scaleY;
-      if (vw >= vh) {
-        scaleX = BASE_SIZE;
-        scaleY = BASE_SIZE * (vh / vw);
-      } else {
-        scaleY = BASE_SIZE * 1.25;
-        scaleX = scaleY * (vw / vh);
-      }
-
-      document.querySelectorAll(".ar-video-plane").forEach(plane => {
-        plane.setAttribute("scale", `${scaleX.toFixed(4)} ${scaleY.toFixed(4)} 1`);
-      });
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-      const sceneEl = document.getElementById("arScene");
-      const statusBadge = document.getElementById("statusBadge");
-      const mainVideo = document.getElementById("mainVideo");
-
-      ["loadedmetadata", "loadeddata", "resize", "playing"].forEach(evt => {
-        mainVideo.addEventListener(evt, () => {
-          applyTrueAspectRatio(mainVideo);
-          mainVideo.playbackRate = currentPlaybackRate;
-        });
-      });
-
-      mainVideo.addEventListener("playing", () => {
-        statusBadge.style.color = "#10b981";
-      });
-
-      mainVideo.addEventListener("error", () => {
-        if (!currentLoadedSrc) return;
-        statusBadge.textContent = `❌ 動画エラー(${currentLoadedSrc}が見つかりません)`;
-        statusBadge.style.color = "#ef4444";
-      });
-
-      VIDEO_LIST.forEach((src, index) => {
-        const targetEntity = document.createElement("a-entity");
-        targetEntity.setAttribute("mindar-image-target", `targetIndex: ${index}`);
-
-        const videoPlane = document.createElement("a-video");
-        videoPlane.classList.add("ar-video-plane");
-        videoPlane.setAttribute("src", "#mainVideo");
-        videoPlane.setAttribute("width", "1");
-        videoPlane.setAttribute("height", "1");
-        videoPlane.setAttribute("scale", "1 1 1");
-        videoPlane.setAttribute("position", "0 0 0.25");
-        videoPlane.setAttribute("rotation", `${currentAngleX} 0 0`);
-
-        targetEntity.appendChild(videoPlane);
-        sceneEl.appendChild(targetEntity);
-
-        targetEntity.addEventListener("targetFound", () => {
-          if (isPinned) return;
-
-          statusBadge.textContent = `🎬 カード #${index + 1} を再生中`;
-          statusBadge.style.color = "#10b981";
-
-          if (currentLoadedSrc !== src) {
-            currentLoadedSrc = src;
-            mainVideo.pause();
-            mainVideo.src = encodeURI(src);
-            mainVideo.load();
-          }
-
-          mainVideo.playbackRate = currentPlaybackRate;
-          applyTrueAspectRatio(mainVideo);
-
-          mainVideo.play().catch(() => {
-            statusBadge.textContent = `⏳ 読込中: ${src}`;
-          });
-        });
-
-        targetEntity.addEventListener("targetLost", () => {
-          if (isPinned) return;
-
-          mainVideo.pause();
-          statusBadge.textContent = "🔍 カードを探しています...";
-          statusBadge.style.color = "#38bdf8";
-        });
-      });
-    });
-  </script>
 </head>
 <body>
 
-  <div id="startOverlay">
-    <h1 style="font-size: 1.6rem; margin-bottom: 8px;">📸 カードARカメラ</h1>
-    <p style="color: #94a3b8; font-size: 0.95rem; line-height: 1.5;">
-      カメラを起動してカードにかざすと<br>対応する動画が再生されます。
+  <!-- 背景ARカメラ（正面固定） -->
+  <video id="arCameraBg" autoplay muted playsinline></video>
+
+  <!-- 起動オーバーレイ -->
+  <div id="arStartOverlay">
+    <h2 style="font-size: 1.45rem; color: #38bdf8;">🥽 AR サウンドカード</h2>
+    <p style="color: #94a3b8; font-size: 0.9rem; line-height: 1.6;">
+      音声は常にON状態で起動します。<br>お気に入り（★）や複数選択したカードを連続で再生できます。
     </p>
-    <button id="startBtn" type="button">▶ ARをスタート</button>
+    <button id="arStartBtn" type="button">▶ ARビューを起動する</button>
   </div>
 
-  <div id="statusBadge" style="display: none;">🔍 カードを探しています...</div>
+  <!-- AR固定HUDレイヤー -->
+  <div class="ar-hud-layer">
 
-  <div id="fixedVideoContainer">
-    <canvas id="fixedCanvas" style="max-width: 100%; max-height: 68vh; border-radius: 16px; border: 2px solid #10b981;"></canvas>
-  </div>
+    <!-- ヘッダー＆同期状態 -->
+    <div class="glass-card">
+      <div class="top-bar">
+        <div class="app-badge">🥽 AR サウンドカード</div>
+        <span class="always-on-pill">🔊 音声常時ON</span>
+      </div>
 
-  <div id="controlPanel">
-    <div class="ctrl-row">
-      <span style="white-space: nowrap;">⏩ 速度:</span>
-      <div class="speed-group">
-        <button class="speed-btn" data-speed="0.5" type="button">0.5x</button>
-        <button class="speed-btn active" data-speed="1.0" type="button">1.0x</button>
-        <button class="speed-btn" data-speed="1.5" type="button">1.5x</button>
-        <button class="speed-btn" data-speed="2.0" type="button">2.0x</button>
+      <div class="sync-row">
+        <span id="syncStatusLabel">☁️ 同期待機中...</span>
+        <div style="display:flex; align-items:center; gap:4px;">
+          <input type="text" id="roomIdInput" class="text-input" style="width: 135px; padding: 4px 8px; font-size: 0.75rem;" placeholder="12文字以上のID" />
+          <button type="button" id="connectRoomBtn" class="mini-btn" style="padding: 4px 8px; font-size: 0.74rem;">接続</button>
+        </div>
       </div>
     </div>
 
-    <div class="ctrl-row" id="angleCtrlRow">
-      <span style="white-space: nowrap;">📐 角度:</span>
-      <input type="range" id="angleSlider" min="0" max="90" value="35" />
-      <span id="angleVal" style="width: 34px; text-align: right;">35°</span>
+    <!-- 正面固定ARカードステージ（角度調整なし） -->
+    <div class="ar-stage-card" id="arStageCard">
+      <div class="ar-now-label" id="arModeLabel">AR CARD READY（正面固定）</div>
+      <div class="ar-now-title" id="arCurrentTitle">再生するカードを選んでください</div>
+      <div class="ar-queue-info" id="arQueueStatus">お気に入り: 0曲 / 選択中: 0曲</div>
     </div>
 
-    <div class="action-btn-row">
-      <button id="muteToggleBtn" class="action-btn" type="button">🔇 音声ON</button>
-      <button id="pinToggleBtn" class="action-btn" type="button">📌 画面に固定</button>
+    <!-- 連続再生コントロール -->
+    <div class="glass-card">
+      <div class="control-grid">
+        <button type="button" class="action-btn btn-fav-play" id="playFavoritesSeqBtn">★ お気に入り連続再生</button>
+        <button type="button" class="action-btn btn-sel-play" id="playSelectedSeqBtn">▶ 選択カード連続再生</button>
+        <button type="button" class="action-btn btn-next" id="nextTrackBtn">⏭ 次のカードへ</button>
+        <button type="button" class="action-btn btn-stop" id="stopPlaybackBtn">⏹ 再生停止</button>
+      </div>
     </div>
+
+    <!-- カード選択・お気に入り管理リスト -->
+    <div class="glass-card">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 0.9rem; font-weight: bold; color: #38bdf8;">📋 サウンドカード一覧</span>
+        <button type="button" id="clearSelectionBtn" class="mini-btn" style="background:#1e293b; color:#cbd5e1; border:1px solid #475569; padding:4px 8px; font-size:0.72rem;">選択全解除</button>
+      </div>
+
+      <div class="filter-tabs">
+        <button type="button" class="tab-btn active" data-filter="all">すべて (<span id="countAllSpan">0</span>)</button>
+        <button type="button" class="tab-btn" data-filter="fav">★ お気に入り (<span id="countFavSpan">0</span>)</button>
+        <button type="button" class="tab-btn" data-filter="selected">☑ 選択中 (<span id="countSelSpan">0</span>)</button>
+      </div>
+
+      <div class="card-list" id="arCardListContainer"></div>
+
+      <!-- クイック曲追加 -->
+      <div style="padding-top: 8px; border-top: 1px dashed #334155; display: flex; flex-direction: column; gap: 6px;">
+        <div style="font-size: 0.76rem; color: #94a3b8;">＋ 新しいカード（音声ファイル・URL）を追加</div>
+        <div class="compact-row">
+          <input type="text" id="addCardTitleInput" class="text-input" placeholder="カード名" />
+          <input type="text" id="addCardUrlInput" class="text-input" placeholder="./sound.mp3 や URL" />
+          <button type="button" id="addCardBtn" class="mini-btn">追加</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
-  <a-scene
-    id="arScene"
-    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; maxTrack: 1; filterMinCF: 0.0001; filterBeta: 0.001; missTolerance: 10; uiLoading: no; uiScanning: no;"
-    color-space="sRGB"
-    renderer="colorManagement: true, physicallyCorrectLights: false, antialias: false"
-    vr-mode-ui="enabled: false"
-    device-orientation-permission-ui="enabled: false"
-  >
-    <a-assets>
-      <video
-        id="mainVideo"
-        preload="none"
-        loop
-        muted
-        playsinline
-        webkit-playsinline
-        crossorigin="anonymous"
-      ></video>
-    </a-assets>
-
-    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-  </a-scene>
-
   <script>
-    const startOverlay = document.getElementById("startOverlay");
-    const startBtn = document.getElementById("startBtn");
-    const statusBadge = document.getElementById("statusBadge");
-    const controlPanel = document.getElementById("controlPanel");
-    const muteToggleBtn = document.getElementById("muteToggleBtn");
-    const pinToggleBtn = document.getElementById("pinToggleBtn");
-    const angleSlider = document.getElementById("angleSlider");
-    const angleVal = document.getElementById("angleVal");
-    const angleCtrlRow = document.getElementById("angleCtrlRow");
-    const fixedVideoContainer = document.getElementById("fixedVideoContainer");
-    const fixedCanvas = document.getElementById("fixedCanvas");
-    const mainVideo = document.getElementById("mainVideo");
-    const sceneEl = document.getElementById("arScene");
+    // =========================================================
+    // Firebase設定
+    // =========================================================
+    const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyBXIOyPImlqiPAX-4JbZ_LNZrzT9_SIazc",
+      authDomain: "sotugyouken-2ec79.firebaseapp.com",
+      databaseURL: "https://sotugyouken-2ec79-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "sotugyouken-2ec79",
+      storageBucket: "sotugyouken-2ec79.firebasestorage.app",
+      messagingSenderId: "682579514497",
+      appId: "1:682579514497:web:f4f3cb5b33637d7dade980",
+      measurementId: "G-6SXYHSS0H8"
+    };
 
-    let animFrameId = null;
-
-    function renderFixedCanvas() {
-      if (!isPinned) return;
-      if (mainVideo.readyState >= 2) {
-        if (fixedCanvas.width !== mainVideo.videoWidth || fixedCanvas.height !== mainVideo.videoHeight) {
-          fixedCanvas.width = mainVideo.videoWidth;
-          fixedCanvas.height = mainVideo.videoHeight;
-        }
-        const ctx = fixedCanvas.getContext("2d");
-        ctx.drawImage(mainVideo, 0, 0, fixedCanvas.width, fixedCanvas.height);
+    const DEFAULT_SONGS = [
+      {
+        title: "サンプル音 1（ファンファーレ）",
+        url: "https://actions.google.com/sounds/v1/alarms/bugle_tune.ogg",
+        baseVolume: 80,
+        peakVolume: 100,
+        duration: 15,
+        favorite: true
+      },
+      {
+        title: "サンプル音 2（効果音）",
+        url: "https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg",
+        baseVolume: 90,
+        peakVolume: 100,
+        duration: 5,
+        favorite: false
       }
-      animFrameId = requestAnimationFrame(renderFixedCanvas);
+    ];
+
+    // DOM要素
+    const arCameraBg = document.getElementById("arCameraBg");
+    const arStartOverlay = document.getElementById("arStartOverlay");
+    const arStartBtn = document.getElementById("arStartBtn");
+
+    const syncStatusLabel = document.getElementById("syncStatusLabel");
+    const roomIdInput = document.getElementById("roomIdInput");
+    const connectRoomBtn = document.getElementById("connectRoomBtn");
+
+    const arStageCard = document.getElementById("arStageCard");
+    const arModeLabel = document.getElementById("arModeLabel");
+    const arCurrentTitle = document.getElementById("arCurrentTitle");
+    const arQueueStatus = document.getElementById("arQueueStatus");
+
+    const playFavoritesSeqBtn = document.getElementById("playFavoritesSeqBtn");
+    const playSelectedSeqBtn = document.getElementById("playSelectedSeqBtn");
+    const nextTrackBtn = document.getElementById("nextTrackBtn");
+    const stopPlaybackBtn = document.getElementById("stopPlaybackBtn");
+    const clearSelectionBtn = document.getElementById("clearSelectionBtn");
+
+    const filterTabBtns = document.querySelectorAll(".tab-btn");
+    const countAllSpan = document.getElementById("countAllSpan");
+    const countFavSpan = document.getElementById("countFavSpan");
+    const countSelSpan = document.getElementById("countSelSpan");
+    const arCardListContainer = document.getElementById("arCardListContainer");
+
+    const addCardTitleInput = document.getElementById("addCardTitleInput");
+    const addCardUrlInput = document.getElementById("addCardUrlInput");
+    const addCardBtn = document.getElementById("addCardBtn");
+
+    // 状態管理
+    let firestoreDb = null;
+    let unsubscribeFirestore = null;
+    let isApplyingRemote = false;
+    let syncTimer = null;
+    const CLIENT_ID = `ar_${Math.random().toString(36).slice(2, 10)}`;
+
+    let syncGroupId = localStorage.getItem("person_sound_sync_group_v1") || "default_room";
+    roomIdInput.value = syncGroupId;
+
+    let songList = [];
+    let selectedIndices = new Set();
+    let currentFilter = "all";
+
+    // 連続再生キュー管理
+    let playQueue = [];
+    let queueCursor = -1;
+    let queueModeName = "";
+    let currentPlayingSongIdx = -1;
+    let durationStopTimer = null;
+
+    // 音声プレーヤー（常にミュート解除・音声ON固定）
+    const audioPlayer = new Audio();
+    audioPlayer.preload = "auto";
+    audioPlayer.muted = false;
+
+    function normalizeAudioPath(rawInput) {
+      const trimmed = (rawInput || "").trim();
+      if (!trimmed) return "";
+      if (/^https?:\/\//i.test(trimmed)) {
+        try {
+          const u = new URL(trimmed);
+          if (u.hostname.includes("dropbox.com")) {
+            u.searchParams.delete("dl");
+            u.searchParams.set("raw", "1");
+            return u.toString();
+          }
+        } catch (e) {}
+        return trimmed;
+      }
+      if (/^(\.\/|\.\.\/|\/)/i.test(trimmed)) return trimmed;
+      return `./${trimmed}`;
     }
 
-    pinToggleBtn.addEventListener("click", () => {
-      isPinned = !isPinned;
-      if (isPinned) {
-        pinToggleBtn.classList.add("pinned");
-        pinToggleBtn.textContent = "🔓 固定を解除";
-        fixedVideoContainer.style.display = "flex";
-        angleCtrlRow.style.display = "none";
-        mainVideo.play().catch(() => {});
-        renderFixedCanvas();
-      } else {
-        pinToggleBtn.classList.remove("pinned");
-        pinToggleBtn.textContent = "📌 画面に固定";
-        fixedVideoContainer.style.display = "none";
-        angleCtrlRow.style.display = "flex";
-        if (animFrameId) cancelAnimationFrame(animFrameId);
-      }
-    });
+    function resolveSafeAudioUrl(rawPath) {
+      const normalized = normalizeAudioPath(rawPath);
+      if (/^https?:\/\//i.test(normalized)) return normalized;
+      const fullUrl = new URL(normalized, window.location.href).href;
+      return encodeURI(decodeURI(fullUrl));
+    }
 
-    document.querySelectorAll(".speed-btn").forEach(btn => {
-      btn.addEventListener("click", (e) => {
-        document.querySelectorAll(".speed-btn").forEach(b => b.classList.remove("active"));
-        e.target.classList.add("active");
+    function normalizeSong(s) {
+      return {
+        ...s,
+        title: s.title || "無題のカード",
+        url: normalizeAudioPath(s.url || ""),
+        baseVolume: typeof s.baseVolume === "number" ? s.baseVolume : 85,
+        peakVolume: typeof s.peakVolume === "number" ? s.peakVolume : 100,
+        duration: typeof s.duration === "number" ? s.duration : 0,
+        favorite: Boolean(s.favorite)
+      };
+    }
 
-        currentPlaybackRate = parseFloat(e.target.dataset.speed);
-        mainVideo.playbackRate = currentPlaybackRate;
-      });
-    });
+    function loadLocalSongs() {
+      const raw = JSON.parse(localStorage.getItem("person_sound_songs_v6") || "null");
+      songList = Array.isArray(raw) && raw.length > 0
+        ? raw.map(normalizeSong)
+        : DEFAULT_SONGS.map(normalizeSong);
+    }
 
-    angleSlider.addEventListener("input", (e) => {
-      const deg = e.target.value;
-      angleVal.textContent = `${deg}°`;
-      const zOffset = (deg / 90) * 0.45;
-      document.querySelectorAll(".ar-video-plane").forEach(plane => {
-        plane.setAttribute("rotation", `${deg} 0 0`);
-        plane.setAttribute("position", `0 0 ${zOffset.toFixed(2)}`);
-      });
-    });
+    function saveAndSyncSongs() {
+      localStorage.setItem("person_sound_songs_v6", JSON.stringify(songList));
+      renderCards();
 
-    muteToggleBtn.addEventListener("click", () => {
-      mainVideo.muted = !mainVideo.muted;
-      muteToggleBtn.textContent = mainVideo.muted ? "🔇 音声ON" : "🔊 音声ON中";
-      if (!mainVideo.paused) mainVideo.play();
-    });
+      if (!firestoreDb || isApplyingRemote) return;
+      if (syncTimer) clearTimeout(syncTimer);
 
-    startBtn.addEventListener("click", async () => {
-      startBtn.disabled = true;
-      startBtn.textContent = "カメラ起動中...";
+      syncStatusLabel.textContent = "☁️ クラウド同期中...";
+      syncStatusLabel.style.color = "#f59e0b";
 
-      try {
-        const arSystem = sceneEl.systems["mindar-image-system"];
-        if (!arSystem) {
-          throw new Error("MindARの初期化が完了していません");
+      syncTimer = setTimeout(async () => {
+        try {
+          await firestoreDb.collection("entry_exit_shared_rooms").doc(syncGroupId).set({
+            updatedAt: Date.now(),
+            updatedBy: CLIENT_ID,
+            songList
+          }, { merge: true });
+          syncStatusLabel.textContent = `✅ 同期済み (${syncGroupId})`;
+          syncStatusLabel.style.color = "#10b981";
+        } catch (e) {
+          syncStatusLabel.textContent = "⚠️ 同期エラー（12文字以上のIDを確認）";
+          syncStatusLabel.style.color = "#ef4444";
         }
-        await arSystem.start();
+      }, 400);
+    }
 
-        startOverlay.style.display = "none";
-        statusBadge.style.display = "block";
-        controlPanel.style.display = "flex";
-      } catch (err) {
-        alert("カメラまたはtargets.mindの読み込みに失敗しました: " + err.message);
-        startBtn.disabled = false;
-        startBtn.textContent = "▶ ARをスタート";
+    function connectFirestore(groupId) {
+      try {
+        if (!firebase.apps.length) {
+          firebase.initializeApp(FIREBASE_CONFIG);
+        }
+        firestoreDb = firebase.firestore();
+
+        if (unsubscribeFirestore) {
+          unsubscribeFirestore();
+          unsubscribeFirestore = null;
+        }
+
+        syncStatusLabel.textContent = `☁️ 接続中 (${groupId})...`;
+        syncStatusLabel.style.color = "#38bdf8";
+
+        unsubscribeFirestore = firestoreDb.collection("entry_exit_shared_rooms").doc(groupId)
+          .onSnapshot((snap) => {
+            if (snap.exists) {
+              const data = snap.data();
+              if (data.updatedBy !== CLIENT_ID && Array.isArray(data.songList)) {
+                isApplyingRemote = true;
+                songList = data.songList.map(normalizeSong);
+                localStorage.setItem("person_sound_songs_v6", JSON.stringify(songList));
+                renderCards();
+                isApplyingRemote = false;
+              }
+              syncStatusLabel.textContent = `✅ 同期中 (${groupId})`;
+              syncStatusLabel.style.color = "#10b981";
+            } else {
+              saveAndSyncSongs();
+            }
+          }, () => {
+            syncStatusLabel.textContent = "⚠️ 同期エラー（12文字以上のIDを指定）";
+            syncStatusLabel.style.color = "#ef4444";
+          });
+      } catch (e) {
+        syncStatusLabel.textContent = "📱 ローカル動作中";
+      }
+    }
+
+    connectRoomBtn.addEventListener("click", () => {
+      const nextId = roomIdInput.value.trim().replace(/[^a-zA-Z0-9_-]/g, "") || "default_room";
+      roomIdInput.value = nextId;
+      syncGroupId = nextId;
+      localStorage.setItem("person_sound_sync_group_v1", syncGroupId);
+      connectFirestore(syncGroupId);
+    });
+
+    // =========================================================
+    // 再生・連続再生ロジック（音声は常にON）
+    // =========================================================
+    function clearPlaybackTimers() {
+      if (durationStopTimer) {
+        clearTimeout(durationStopTimer);
+        durationStopTimer = null;
+      }
+    }
+
+    function stopAllPlayback() {
+      clearPlaybackTimers();
+      audioPlayer.pause();
+      audioPlayer.currentTime = 0;
+      playQueue = [];
+      queueCursor = -1;
+      queueModeName = "";
+      currentPlayingSongIdx = -1;
+
+      arStageCard.classList.remove("playing");
+      arModeLabel.textContent = "AR CARD READY（正面固定）";
+      arCurrentTitle.textContent = "再生停止中";
+      renderCards();
+    }
+
+    function playSongAtIndex(songIdx, isFromQueue = false) {
+      const song = songList[songIdx];
+      if (!song) {
+        stopAllPlayback();
+        return;
+      }
+
+      clearPlaybackTimers();
+      currentPlayingSongIdx = songIdx;
+
+      // 常にミュート解除・音声ON（最小音量0でも聞こえるよう下限を保護）
+      audioPlayer.muted = false;
+      const volRatio = Math.max(0.15, Math.min(1.0, (song.peakVolume || song.baseVolume || 85) / 100));
+      audioPlayer.volume = volRatio;
+      audioPlayer.src = resolveSafeAudioUrl(song.url);
+
+      audioPlayer.play().then(() => {
+        arStageCard.classList.add("playing");
+        if (isFromQueue && playQueue.length > 0) {
+          arModeLabel.textContent = `${queueModeName}（${queueCursor + 1} / ${playQueue.length}枚目）`;
+        } else {
+          arModeLabel.textContent = "▶ 単体カード再生中（音声ON）";
+        }
+        arCurrentTitle.textContent = `${song.favorite ? "★ " : ""}${song.title}`;
+        renderCards();
+
+        if (song.duration > 0) {
+          durationStopTimer = setTimeout(() => {
+            handleTrackFinished();
+          }, song.duration * 1000);
+        }
+      }).catch(() => {
+        arCurrentTitle.textContent = `❌ 再生失敗: ${song.title}`;
+        if (isFromQueue) {
+          setTimeout(() => handleTrackFinished(), 800);
+        }
+      });
+    }
+
+    function handleTrackFinished() {
+      clearPlaybackTimers();
+      if (playQueue.length > 0 && queueCursor + 1 < playQueue.length) {
+        queueCursor++;
+        playSongAtIndex(playQueue[queueCursor], true);
+      } else {
+        const finishedMode = queueModeName;
+        stopAllPlayback();
+        if (finishedMode) {
+          arCurrentTitle.textContent = `✅ ${finishedMode} 完了`;
+        }
+      }
+    }
+
+    audioPlayer.addEventListener("ended", handleTrackFinished);
+
+    function startSequentialPlayback(indicesArray, modeTitle) {
+      if (!indicesArray || indicesArray.length === 0) {
+        arModeLabel.textContent = "⚠️ 再生対象がありません";
+        arCurrentTitle.textContent = modeTitle.includes("お気に入り")
+          ? "先にカードの「☆」を押してお気に入り登録してください"
+          : "先にカードをタップしてチェックを入れてください";
+        return;
+      }
+      playQueue = [...indicesArray];
+      queueCursor = 0;
+      queueModeName = modeTitle;
+      playSongAtIndex(playQueue[0], true);
+    }
+
+    playFavoritesSeqBtn.addEventListener("click", () => {
+      const favIndices = songList
+        .map((s, idx) => (s.favorite ? idx : -1))
+        .filter(idx => idx !== -1);
+      startSequentialPlayback(favIndices, "★ お気に入り連続再生");
+    });
+
+    playSelectedSeqBtn.addEventListener("click", () => {
+      const selIndices = Array.from(selectedIndices)
+        .filter(idx => idx >= 0 && idx < songList.length)
+        .sort((a, b) => a - b);
+      startSequentialPlayback(selIndices, "▶ 選択カード連続再生");
+    });
+
+    nextTrackBtn.addEventListener("click", () => {
+      if (playQueue.length > 0 && queueCursor + 1 < playQueue.length) {
+        queueCursor++;
+        playSongAtIndex(playQueue[queueCursor], true);
+      } else if (songList.length > 0) {
+        const nextIdx = (currentPlayingSongIdx + 1) % songList.length;
+        playQueue = [];
+        queueCursor = -1;
+        playSongAtIndex(nextIdx, false);
       }
     });
+
+    stopPlaybackBtn.addEventListener("click", stopAllPlayback);
+
+    clearSelectionBtn.addEventListener("click", () => {
+      selectedIndices.clear();
+      renderCards();
+    });
+
+    // =========================================================
+    // カード一覧描画＆お気に入り・選択操作
+    // =========================================================
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+    }
+
+    function updateCounters() {
+      const favCount = songList.filter(s => s.favorite).length;
+      // 範囲外の選択インデックスを掃除
+      selectedIndices.forEach(idx => {
+        if (idx < 0 || idx >= songList.length) selectedIndices.delete(idx);
+      });
+      const selCount = selectedIndices.size;
+
+      countAllSpan.textContent = songList.length;
+      countFavSpan.textContent = favCount;
+      countSelSpan.textContent = selCount;
+      arQueueStatus.textContent = `★ お気に入り: ${favCount}枚 / ☑ 選択中: ${selCount}枚`;
+    }
+
+    function renderCards() {
+      updateCounters();
+      arCardListContainer.innerHTML = "";
+
+      const entries = songList
+        .map((song, idx) => ({ song, idx }))
+        .filter(({ song, idx }) => {
+          if (currentFilter === "fav") return song.favorite;
+          if (currentFilter === "selected") return selectedIndices.has(idx);
+          return true;
+        });
+
+      if (entries.length === 0) {
+        arCardListContainer.innerHTML = `<div style="text-align:center; color:#64748b; font-size:0.82rem; padding:14px;">該当するカードがありません</div>`;
+        return;
+      }
+
+      entries.forEach(({ song, idx }) => {
+        const isSelected = selectedIndices.has(idx);
+        const isPlaying = currentPlayingSongIdx === idx;
+
+        const card = document.createElement("div");
+        card.className = "ar-sound-card"
+          + (isSelected ? " selected-card" : "")
+          + (isPlaying ? " now-playing-card" : "");
+
+        const leftArea = document.createElement("div");
+        leftArea.className = "card-left";
+        leftArea.innerHTML = `
+          <div class="select-check">${isSelected ? "✓" : ""}</div>
+          <div style="overflow: hidden;">
+            <div class="card-title">${idx + 1}. ${escapeHtml(song.title)}</div>
+            <div class="card-sub">${song.duration > 0 ? `⏱️ ${song.duration}秒` : "⏱️ 最後まで"} ・ ${isSelected ? "連続再生に選択済" : "タップで選択"}</div>
+          </div>
+        `;
+        leftArea.addEventListener("click", () => {
+          if (selectedIndices.has(idx)) {
+            selectedIndices.delete(idx);
+          } else {
+            selectedIndices.add(idx);
+          }
+          renderCards();
+        });
+
+        const rightActions = document.createElement("div");
+        rightActions.className = "card-actions";
+
+        const favBtn = document.createElement("button");
+        favBtn.type = "button";
+        favBtn.className = "fav-star-btn" + (song.favorite ? " is-fav" : "");
+        favBtn.textContent = song.favorite ? "★" : "☆";
+        favBtn.title = "お気に入り切替";
+        favBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          songList[idx].favorite = !songList[idx].favorite;
+          saveAndSyncSongs();
+        });
+
+        const playBtn = document.createElement("button");
+        playBtn.type = "button";
+        playBtn.className = "single-play-btn";
+        playBtn.textContent = isPlaying ? "🔊 再生中" : "▶ 再生";
+        playBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          playQueue = [];
+          queueCursor = -1;
+          playSongAtIndex(idx, false);
+        });
+
+        rightActions.appendChild(favBtn);
+        rightActions.appendChild(playBtn);
+
+        card.appendChild(leftArea);
+        card.appendChild(rightActions);
+        arCardListContainer.appendChild(card);
+      });
+    }
+
+    filterTabBtns.forEach(btn => {
+      btn.addEventListener("click", () => {
+        filterTabBtns.forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        currentFilter = btn.dataset.filter;
+        renderCards();
+      });
+    });
+
+    addCardBtn.addEventListener("click", () => {
+      const normalizedUrl = normalizeAudioPath(addCardUrlInput.value);
+      if (!normalizedUrl) return;
+      let title = addCardTitleInput.value.trim();
+      if (!title) {
+        const clean = normalizedUrl.split("?")[0];
+        title = decodeURIComponent(clean.substring(clean.lastIndexOf("/") + 1)) || `カード ${songList.length + 1}`;
+      }
+      songList.push(normalizeSong({
+        title,
+        url: normalizedUrl,
+        baseVolume: 85,
+        peakVolume: 100,
+        duration: 0,
+        favorite: false
+      }));
+      addCardTitleInput.value = "";
+      addCardUrlInput.value = "";
+      saveAndSyncSongs();
+    });
+
+    // =========================================================
+    // ARカメラ起動（正面固定・角度調整なし）
+    // =========================================================
+    async function startArCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+          audio: false
+        });
+        arCameraBg.srcObject = stream;
+        await arCameraBg.play();
+      } catch (e) {
+        // カメラ未許可・PC環境でもARカードUIはそのまま利用可能
+      }
+    }
+
+    arStartBtn.addEventListener("click", async () => {
+      audioPlayer.muted = false;
+      audioPlayer.play().then(() => audioPlayer.pause()).catch(() => {});
+      arStartOverlay.style.display = "none";
+      await startArCamera();
+    });
+
+    // 初期化
+    loadLocalSongs();
+    renderCards();
+    connectFirestore(syncGroupId);
   </script>
 </body>
 </html>
