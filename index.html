@@ -109,23 +109,18 @@
       border-radius: 99px;
     }
 
-    /* 正面固定 動画再生シアター枠 */
+    /* 画面いっぱいの動画再生シアター枠 */
     #videoTheaterOverlay {
       position: fixed;
-      top: 56px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: min(92vw, 440px);
-      background: rgba(15, 23, 42, 0.95);
-      backdrop-filter: blur(12px);
-      border: 2px solid #38bdf8;
-      border-radius: 18px;
-      padding: 10px;
-      z-index: 25;
+      inset: 0;
+      width: 100vw;
+      height: 100dvh;
+      background: #000000;
+      z-index: 50;
       display: none;
       flex-direction: column;
-      gap: 8px;
-      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65);
+      justify-content: center;
+      align-items: center;
     }
 
     #videoTheaterOverlay.active {
@@ -134,24 +129,42 @@
 
     #mainVideoPlayer {
       width: 100%;
-      aspect-ratio: 16 / 9;
+      height: 100%;
       background: #000;
-      border-radius: 12px;
       object-fit: contain;
     }
 
-    .theater-header {
+    .theater-top-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 14px 16px;
+      background: linear-gradient(to bottom, rgba(0, 0, 0, 0.85), transparent);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
-      font-size: 0.82rem;
+      gap: 10px;
+      z-index: 55;
     }
 
     .theater-actions {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .theater-bottom-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 16px;
+      background: linear-gradient(to top, rgba(0, 0, 0, 0.85), transparent);
+      text-align: center;
+      z-index: 55;
+      pointer-events: none;
     }
 
     /* 下部ドロワー */
@@ -476,10 +489,10 @@
   <div id="startOverlay">
     <h2 style="font-size: 1.45rem; color: #38bdf8;">🎬 AR カード動画リーダー</h2>
     <p style="color: #94a3b8; font-size: 0.86rem; line-height: 1.6;">
-      カメラにカードをかざすと動画が再生されます。<br>
+      カメラにカードをかざすと動画が全画面で再生されます。<br>
       ★お気に入りや☑選択したカードのみ、かざさずに連続再生できます。
     </p>
-    <button id="startArBtn" type="button">▶ カメラ＆ARを起動する</button>
+    <button id="startArBtn" type="button">▶ スタートする</button>
   </div>
 
   <!-- 上部ステータスHUD -->
@@ -494,24 +507,27 @@
     <span id="scanGuideLabel">追加カードはこの枠内に収めてかざす</span>
   </div>
 
-  <!-- 正面固定 動画再生シアター枠 -->
+  <!-- 画面いっぱい 動画再生シアター枠 -->
   <div id="videoTheaterOverlay">
-    <div class="theater-header">
-      <span id="theaterQueueBadge" style="color: #38bdf8; font-weight: bold;">▶ 再生中</span>
+    <div class="theater-top-bar">
+      <span id="theaterQueueBadge" style="color: #38bdf8; font-weight: bold; font-size: 0.85rem;">▶ 再生中</span>
       <div class="theater-actions">
-        <button type="button" id="unmuteBtn" style="display:none; background:#f59e0b; color:#0f172a; border:none; border-radius:7px; padding:4px 9px; font-size:0.74rem; font-weight:bold; cursor:pointer;">🔊 音声ON</button>
-        <button type="button" id="closeTheaterBtn" style="background:#ef4444; color:#fff; border:none; border-radius:7px; padding:4px 9px; font-size:0.74rem; font-weight:bold; cursor:pointer;">✕ 閉じる</button>
+        <button type="button" id="unmuteBtn" style="display:none; background:#f59e0b; color:#0f172a; border:none; border-radius:8px; padding:7px 12px; font-size:0.8rem; font-weight:bold; cursor:pointer;">🔊 音声ON</button>
+        <button type="button" id="theaterNextBtn" style="display:none; background:#10b981; color:#fff; border:none; border-radius:8px; padding:7px 12px; font-size:0.8rem; font-weight:bold; cursor:pointer;">⏭ 次へ</button>
+        <button type="button" id="closeTheaterBtn" style="background:#ef4444; color:#fff; border:none; border-radius:8px; padding:7px 14px; font-size:0.82rem; font-weight:bold; cursor:pointer;">✕ 閉じる</button>
       </div>
     </div>
     <video id="mainVideoPlayer" playsinline webkit-playsinline controls></video>
-    <div id="theaterVideoTitle" style="font-size: 0.9rem; font-weight: bold; color: #f8fafc; text-align: center;"></div>
+    <div class="theater-bottom-bar">
+      <div id="theaterVideoTitle" style="font-size: 1rem; font-weight: bold; color: #f8fafc;"></div>
+    </div>
   </div>
 
-  <!-- A-Frame + MindAR カメラシーン -->
+  <!-- A-Frame + MindAR カメラシーン（autoStart: true で確実にトラッキング起動） -->
   <div id="arSceneWrapper">
     <a-scene
       id="mindArScene"
-      mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; maxTrack: 1; uiLoading: no; uiError: no; uiScanning: no;"
+      mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; maxTrack: 1; uiLoading: no; uiError: no; uiScanning: no;"
       color-space="sRGB"
       renderer="colorManagement: true, physicallyCorrectLights"
       vr-mode-ui="enabled: false"
@@ -671,6 +687,7 @@
     const theaterQueueBadge = document.getElementById("theaterQueueBadge");
     const theaterVideoTitle = document.getElementById("theaterVideoTitle");
     const unmuteBtn = document.getElementById("unmuteBtn");
+    const theaterNextBtn = document.getElementById("theaterNextBtn");
     const closeTheaterBtn = document.getElementById("closeTheaterBtn");
 
     const bottomPanel = document.getElementById("bottomPanel");
@@ -710,18 +727,34 @@
     let queueLabel = "";
     let currentPlayingIdx = -1;
     let activeObjectUrls = new Map();
+    let mindArReady = false;
 
     // =========================================================
-    // 1. MindAR（元々の30枚ターゲット）確実起動＆イベント紐付け
+    // 1. MindAR（元々の30枚ターゲット）確実起動＆ターゲット検知
     // =========================================================
+    async function verifyTargetsMindExists() {
+      try {
+        const res = await fetch("./targets.mind", { method: "HEAD" });
+        if (!res.ok) {
+          scanStatusText.textContent = "⚠️ targets.mind が見つかりません（同じフォルダに配置してください）";
+          return false;
+        }
+        return true;
+      } catch (e) {
+        scanStatusText.textContent = "⚠️ targets.mind を読み込めません（ローカルサーバーで開いてください）";
+        return false;
+      }
+    }
+
     function bindMindArTargetEvents() {
       mindArScene.addEventListener("arReady", () => {
-        scanStatusText.textContent = "📷 AR準備完了！カードをかざしてください";
+        mindArReady = true;
+        scanStatusText.textContent = "📷 AR準備完了！30枚または追加カードをかざしてください";
       });
 
       mindArScene.addEventListener("arError", (e) => {
         console.error("MindAR Error:", e);
-        scanStatusText.textContent = "⚠️ targets.mind 読込失敗（HTTPサーバーで開いてください）";
+        scanStatusText.textContent = "⚠️ MindAR初期化エラー（targets.mind が壊れているか未配置です）";
       });
 
       for (let i = 0; i < VIDEO_FILES.length; i++) {
@@ -731,6 +764,8 @@
         slotEl.addEventListener("targetFound", () => {
           const cardIdx = videoCards.findIndex(c => c.type !== "custom" && Number(c.targetIndex) === i);
           const targetIdx = cardIdx !== -1 ? cardIdx : i;
+          scanStatusText.textContent = `🎯 ARターゲット #${i + 1} を認識！`;
+
           if (videoCards[targetIdx] && currentPlayingIdx !== targetIdx) {
             playQueue = [];
             queuePos = -1;
@@ -738,16 +773,6 @@
           }
         });
       }
-    }
-
-    function waitForSceneLoaded(sceneEl) {
-      return new Promise((resolve) => {
-        if (sceneEl.hasLoaded) {
-          resolve();
-        } else {
-          sceneEl.addEventListener("loaded", () => resolve(), { once: true });
-        }
-      });
     }
 
     // =========================================================
@@ -798,8 +823,7 @@
     }
 
     // =========================================================
-    // 2. 追加カード認識エンジン（色分布＋輪郭方向ヒストグラム・高感度版）
-    //    照明変化・多少の傾き・位置ズレがあっても 80〜95% で一致
+    // 2. 追加カード認識エンジン（色分布＋輪郭方向ヒストグラム）
     // =========================================================
     const customCardPatterns = [];
     const scanCanvas = document.createElement("canvas");
@@ -816,7 +840,6 @@
       return null;
     }
 
-    // 色ヒストグラム(24次元) + 3x3領域ごとのエッジ方向ヒストグラム(36次元) = 60次元特徴ベクトル
     function extractRobustCardDescriptor(imgOrVideo, sx = 0, sy = 0, sw = null, sh = null) {
       const w = sw || imgOrVideo.videoWidth || imgOrVideo.naturalWidth || imgOrVideo.width;
       const h = sh || imgOrVideo.videoHeight || imgOrVideo.naturalHeight || imgOrVideo.height;
@@ -829,7 +852,6 @@
       const data = scanCtx.getImageData(0, 0, S, S).data;
 
       const grays = new Float32Array(S * S);
-      // 色味特徴（2x2ブロックごとのRGB比率：照明の明るさに左右されない正規化RGB）
       const colorHist = new Float32Array(2 * 2 * 3);
       let sum = 0;
 
@@ -843,7 +865,7 @@
           grays[i] = lum;
           sum += lum;
 
-          const rgbSum = r + g + b + 15; // 明るさ正規化
+          const rgbSum = r + g + b + 15;
           const bx = x < S / 2 ? 0 : 1;
           const by = y < S / 2 ? 0 : 1;
           const cIdx = (by * 2 + bx) * 3;
@@ -858,9 +880,8 @@
       for (let i = 0; i < grays.length; i++) {
         variance += (grays[i] - mean) ** 2;
       }
-      if (variance / grays.length < 60) return null; // 真っ白・真っ暗な壁は除外
+      if (variance / grays.length < 60) return null;
 
-      // 3x3グリッドごとの輪郭勾配（横・縦・斜め2方向 = 36次元）
       const edgeHist = new Float32Array(3 * 3 * 4);
       for (let y = 1; y < S - 1; y++) {
         for (let x = 1; x < S - 1; x++) {
@@ -879,7 +900,6 @@
         }
       }
 
-      // それぞれL2正規化
       const normalizeVec = (vec) => {
         let norm = 0;
         for (let i = 0; i < vec.length; i++) norm += vec[i] * vec[i];
@@ -902,7 +922,6 @@
       for (let i = 0; i < descA.edgeHist.length; i++) {
         dotEdge += descA.edgeHist[i] * descB.edgeHist[i];
       }
-      // 色分布45% + 模様・輪郭分布55% の総合スコア
       return dotColor * 0.45 + dotEdge * 0.55;
     }
 
@@ -944,9 +963,8 @@
         let bestCardTitle = "";
         let bestScore = 0;
 
-        // ガイド枠が画面上部寄り(top: 34%)にあるため、中央とやや上寄りの両方を複数サイズで探索
         const scales = [0.42, 0.58, 0.75];
-        const yOffsets = [0.42, 0.50]; // 画面上寄り(42%) と 中央(50%)
+        const yOffsets = [0.42, 0.50];
 
         for (const pat of customCardPatterns) {
           const targetAspect = pat.desc.aspect;
@@ -975,7 +993,6 @@
           }
         }
 
-        // 一致率が 75% 以上なら反応を表示、83% 以上で自動再生
         if (bestScore >= 0.72 && bestCardId) {
           const pct = Math.min(100, Math.round(bestScore * 100));
           scanGuideLabel.textContent = `🔍 ${bestCardTitle} (${pct}%)`;
@@ -1101,7 +1118,7 @@
     }
 
     // =========================================================
-    // 動画再生・連続再生エンジン
+    // 動画再生・連続再生エンジン（画面いっぱい表示）
     // =========================================================
     function stopVideoPlayback() {
       mainVideoPlayer.pause();
@@ -1109,12 +1126,15 @@
       mainVideoPlayer.load();
       videoTheaterOverlay.classList.remove("active");
       unmuteBtn.style.display = "none";
+      theaterNextBtn.style.display = "none";
 
       playQueue = [];
       queuePos = -1;
       queueLabel = "";
       currentPlayingIdx = -1;
-      scanStatusText.textContent = "📷 カードをかざすと動画が流れます";
+      scanStatusText.textContent = mindArReady
+        ? "📷 AR準備完了！カードをかざすと動画が流れます"
+        : "📷 カードをかざすと動画が流れます";
       updateScanGuideVisibility();
       renderCardList();
     }
@@ -1130,6 +1150,9 @@
       updateScanGuideVisibility();
       videoTheaterOverlay.classList.add("active");
       unmuteBtn.style.display = "none";
+
+      const hasNextInQueue = fromQueue && playQueue.length > 0 && queuePos + 1 < playQueue.length;
+      theaterNextBtn.style.display = hasNextInQueue ? "inline-block" : "none";
 
       const srcUrl = await resolveCardVideoSrc(card);
       mainVideoPlayer.muted = false;
@@ -1151,7 +1174,7 @@
         try {
           await mainVideoPlayer.play();
         } catch (err2) {
-          theaterVideoTitle.textContent = `❌ 動画を再生できませんでした: ${card.videoUrl || card.title}`;
+          theaterVideoTitle.textContent = `❌ 動画ファイルが見つかりません: ${card.videoUrl || card.title}`;
         }
       }
 
@@ -1162,6 +1185,13 @@
       mainVideoPlayer.muted = false;
       mainVideoPlayer.play().catch(() => {});
       unmuteBtn.style.display = "none";
+    });
+
+    theaterNextBtn.addEventListener("click", () => {
+      if (playQueue.length > 0 && queuePos + 1 < playQueue.length) {
+        queuePos++;
+        playVideoCard(playQueue[queuePos], true);
+      }
     });
 
     mainVideoPlayer.addEventListener("ended", () => {
@@ -1489,8 +1519,8 @@
       panelToggleHint.textContent = collapsed ? "▲ 開く" : "▼ 折りたたむ";
     });
 
-    // ARカメラ起動＆認識開始（A-Frameシーンのロード完了を待ってから確実に起動）
-    startArBtn.addEventListener("click", async () => {
+    // スタートボタン（音声付き動画再生のブラウザ制限解除＆スキャナー開始）
+    startArBtn.addEventListener("click", () => {
       mainVideoPlayer.muted = true;
       mainVideoPlayer.play().then(() => {
         mainVideoPlayer.pause();
@@ -1498,23 +1528,12 @@
       }).catch(() => {});
 
       startOverlay.style.display = "none";
-      scanStatusText.textContent = "⏳ カメラとARターゲットを読み込み中...";
-
-      try {
-        await waitForSceneLoaded(mindArScene);
-        const arSystem = mindArScene.systems["mindar-image-system"];
-        if (arSystem) {
-          await arSystem.start();
-        }
-      } catch (e) {
-        console.error(e);
-        scanStatusText.textContent = "⚠️ AR起動エラー（targets.mind の配置を確認してください）";
-      }
       startCustomCardScanner();
     });
 
     // 初期化
     bindMindArTargetEvents();
+    verifyTargetsMindExists();
     loadCardsFromLocal();
   </script>
 </body>
